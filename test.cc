@@ -131,10 +131,16 @@ CopyTo(heap *Dest, allocation_tag *Tag)
   return Result;
 }
 
+void assert_PointerValidForHeap(heap *H, u8* pointer_location)
+{
+  assert(pointer_location >= H->memory);
+  assert(pointer_location <= H->memory+H->size);
+}
+
 void assert_HeapEnclosesBuffer(heap *H, u8* buffer, umm size)
 {
-  assert(buffer >= H->memory);
-  assert(buffer+size <= H->memory+H->size);
+  assert_PointerValidForHeap(H, buffer);
+  assert_PointerValidForHeap(H, buffer+size);
 }
 
 void assert_TagValidForHeap(heap *H, allocation_tag *T)
@@ -358,6 +364,7 @@ allocation_tag *CopyBufferToHeap(heap *Heap, allocation_tag *Tag, u8** new_point
   {
     NewTag->pointer_location = new_pointer_location;
   }
+
   *NewTag->pointer_location = new_location;
 
   printf("Persisted (%lu) bytes @ 0x%lx -> 0x%lx\n", NewTag->size, (umm)current_buffer, (umm)new_location);
@@ -394,23 +401,26 @@ void collect()
 
           case allocation_type::List_Str:
           {
-            /* Str* Buffer = (Str*)GetBuffer(Tag); */
-            allocation_tag* NewTag = CopyBufferToHeap(&NewZone, Tag);
-            Str* Buffer = (Str*)GetBuffer(NewTag);
-            assert_TagValidForHeap(&NewZone, NewTag);
+            allocation_tag* NewContainerTag = CopyBufferToHeap(&NewZone, Tag);
+            Str* ContainerBuffer = (Str*)GetBuffer(NewContainerTag);
+            assert_TagValidForHeap(&NewZone, NewContainerTag);
             VerifyHeapIntegrity(&NewZone);
 
             umm element_count = Tag->size/sizeof(Str);
-            for (umm str_index = 0; str_index < element_count; ++str_index)
+            for (umm element_index = 0; element_index < element_count; ++element_index)
             {
-              Str* This = Buffer + str_index;
-              if (This->buf)
+              Str* ElementBuffer = ContainerBuffer + element_index;
+              if (ElementBuffer->buf)
               {
-                allocation_tag *ThisTag = GetTag(This->buf);
-                assert(ThisTag->Type == allocation_type::Owned_Buffer);
+                allocation_tag *ElementTag = GetTag(ElementBuffer->buf);
+                assert(ElementTag->Type == allocation_type::Owned_Buffer);
+                assert_PointerValidForHeap(&gHeap, (u8*)ElementTag->pointer_location);
+                assert_PointerValidForHeap(&gHeap, (u8*)&ElementTag->pointer_location);
 
-                allocation_tag * NewStrTag = CopyBufferToHeap(&NewZone, ThisTag, &This->buf);
-                assert_TagValidForHeap(&NewZone, NewStrTag);
+                allocation_tag * NewElementTag = CopyBufferToHeap(&NewZone, ElementTag, &ElementBuffer->buf);
+                assert_PointerValidForHeap(&NewZone, (u8*)NewElementTag->pointer_location);
+                assert_PointerValidForHeap(&NewZone, (u8*)&NewElementTag->pointer_location);
+                assert_TagValidForHeap(&NewZone, NewElementTag);
                 VerifyHeapIntegrity(&NewZone);
               }
             }
@@ -447,13 +457,6 @@ void ExampleFunction(const Str &input)
   collect();
   printf("---------- collection complete\n");
   return;
-}
-
-
-Str
-TempStr(umm size)
-{
-  return Str(size);
 }
 
 int main()
