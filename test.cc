@@ -184,6 +184,7 @@ u8* Allocate(umm bytes, u8* owner, allocation_type Type)
 
 void Deallocate(u8* Allocation)
 {
+  printf("Deallocating 0x%lx\n", (umm)Allocation);
   allocation_tag *Tag = GetTag(Allocation);
   assert(Tag->owner);
   Tag->owner = 0;
@@ -217,15 +218,19 @@ struct Str {
     len = len_init;
     buf = buf_init;
     set_location_pointer(&buf, (u8*)this);
-    printf("Allocated Str(%lu)    @ 0x%lx\n", len, (umm)buf_init);
+    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf_init);
   }
 
   Str(int len_init) {
     len = len_init;
     buf = Allocate(len+1, (u8*)this, allocation_type::Buffer);
     set_location_pointer(&buf, (u8*)this);
-    printf("Allocated Str(%lu)    @ 0x%lx\n", len, (umm)buf);
+    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf);
   }
+
+  Str(const Str &obj) = delete;
+
+  Str(Str&& source) { printf("Move constructor called"); }
 
   ~Str() {
     if (get_owner(buf) == (u8*)this)
@@ -259,13 +264,13 @@ struct List {
     buf = (T*)Allocate(buf_len, (u8*)this, allocation_type::List_Str);
     set_location_pointer((u8**)&buf, (u8*)this);
 
-    printf("List(%lu) @ 0x%lx\n", len, (umm)this);
+    printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)this);
   }
 
   /* List<T>(int len_init, u8* buf_init) { */
   /*   len = len_init; */
   /*   buf = buf_init; */
-  /*   printf("List(%lu) @ 0x%lx\n", len, (umm)buf); */
+  /*   printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)buf); */
   /* } */
 
   ~List() {
@@ -277,14 +282,14 @@ struct List {
       }
     }
 
-    printf("Freeing List(%ld) @ 0x%lx\n", len, (umm)this);
+    printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)this);
     Deallocate((u8*)buf);
   }
 
   void push(T *element)
   {
     assert(this->at < this->len);
-    printf("Pushing %lu, owned by 0x%lx\n", at, (umm)this);
+    printf("Pushing list element (%lu) :: Owned by 0x%lx\n", at, (umm)this);
 
     T *bucket = buf + at;
     *bucket = *element;
@@ -405,10 +410,40 @@ void collect()
 }
 
 
+void ExampleFunction(const Str &input)
+{
+  printf("---------- function start\n");
+  collect();
+  printf("---------- collection complete\n");
+  return;
+}
+
+
+Str
+TempStr(umm size)
+{
+  return Str(size);
+}
+
 int main()
 {
   InitHeap(Megabytes(32));
 
+#if 1
+  {
+    Str thing1(32);
+    printf("---------- allocated\n");
+    Str s2 = thing1.slice(0,1);
+    ExampleFunction(thing1);
+    printf("---------- function complete\n");
+    collect();
+
+    ExampleFunction(thing1.slice(0,1));
+  }
+  collect();
+#endif
+
+#if 0
   {
     Str thing1(32);
     collect();
@@ -430,14 +465,28 @@ int main()
 
     collect();
   }
-
   collect();
+#endif
 
-  /* int i = 0; */
-  /* while (i++ < 7) */
-  /* { */
-  /*   printf("slice --------------------- slice\n"); */
-  /*   Str sliced = thing.slice(0, 2); */
-  /*   list.push(&sliced); */
-  /* } */
+
+#if 0
+  {
+    Str thing(32);
+    collect();
+    List<Str> list(8);
+    collect();
+
+    int i = 0;
+    while (i++ < 7)
+    {
+      printf("slice --------------------- slice\n");
+      Str sliced = thing.slice(0, 2);
+      list.push(&sliced);
+      collect();
+    }
+    collect();
+  }
+  collect();
+#endif
+
 }
