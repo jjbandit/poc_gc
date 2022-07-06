@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <utility>
+
 #include <unistd.h>
 
 #define NotImplemented() assert(0)
@@ -228,9 +230,13 @@ struct Str {
     printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf);
   }
 
-  Str(const Str &obj) = delete;
+  Str(const Str & obj) = delete;
+  Str& operator=(Str & other) = delete;
+  Str& operator=(Str && other) = delete;
 
-  Str(Str&& source) { printf("Move constructor called"); }
+  // NOTE(Jesse): Always use the move constructor.
+  // This is how apparently returning by value works : `return Str(buffer, length)`
+  Str(Str && source) = default;
 
   ~Str() {
     if (get_owner(buf) == (u8*)this)
@@ -251,6 +257,14 @@ struct Str {
 
   debug_mode_owner_pointer();
 };
+
+
+void
+MoveMemory(u8* Dest, u8* Src, umm size)
+{
+  memcpy(Dest, Src, size);
+  memset(Src, 0, size);
+}
 
 
 #if 1
@@ -291,10 +305,12 @@ struct List {
     assert(this->at < this->len);
     printf("Pushing list element (%lu) :: Owned by 0x%lx\n", at, (umm)this);
 
-    T *bucket = buf + at;
-    *bucket = *element;
+    T *bucket = buf+at;
 
-    memset(element, 0, sizeof(T));
+    // NOTE(Jesse): Tried to use std::move here, but it's actually not
+    // specified to do anything.  It's a hint to the compiler; it _might_ do
+    // something, but it doesn't have to.
+    MoveMemory((u8*)bucket, (u8*)element, sizeof(T));
 
     set_location_pointer(&bucket->buf, (u8*)this);
 
@@ -304,6 +320,21 @@ struct List {
     at++;
 
     VerifyHeapIntegrity(&gHeap);
+  }
+
+  // NOTE(Jesse): This is here such that we can add elements that are created
+  // from temporaries.  This is unsafe, but works because the element is
+  // immediately copied into the permanent storage of this container.  Somewhat
+  // confusing, definite footgun.  Not sure what we can do about getting around
+  // this issue.
+  //
+  // I guess what I'm trying to say here is only ever write functions that
+  // accept const references (temporary variables) for stuff that's stored
+  // immediately afterwards.
+  //
+  void push(const T &element)
+  {
+    push((T*)&element);
   }
 
   umm at;
@@ -443,7 +474,7 @@ int main()
   collect();
 #endif
 
-#if 0
+#if 1
   {
     Str thing1(32);
     collect();
@@ -469,7 +500,7 @@ int main()
 #endif
 
 
-#if 0
+#if 1
   {
     Str thing(32);
     collect();
@@ -480,8 +511,8 @@ int main()
     while (i++ < 7)
     {
       printf("slice --------------------- slice\n");
-      Str sliced = thing.slice(0, 2);
-      list.push(&sliced);
+      Str thing2 = thing.slice(0, 2);
+      list.push(thing2);
       collect();
     }
     collect();
