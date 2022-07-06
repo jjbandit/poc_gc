@@ -17,36 +17,6 @@
 typedef unsigned long int umm;
 typedef unsigned char u8;
 
-
-
-#if CALLOC_ALLOC
-
-#define debug_mode_owner_pointer() void* owner;
-#define set_location_pointer(buf, owner_in) this->owner = owner_in;
-#define get_pointer_location(buf) this->owner
-
-#define Allocate(size, ...) Allocate_Internal(size)
-
-void Deallocate(u8* p)
-{
-  printf("Deallocating 0x%lx\n", (umm)p);
-  free(p);
-}
-
-u8* Allocate_Internal(umm size)
-{
-  printf("Allocating %lu @ ", size);
-  u8* Result = (u8*)calloc(size, 1);
-  printf("0x%lx\n", (umm)Result);
-  return Result;
-}
-
-void InitHeap(umm Megabytes) {}
-
-#elif GC_ALLOC
-
-#define debug_mode_owner_pointer()
-
 struct heap
 {
   umm allocations;
@@ -226,11 +196,6 @@ bool we_own_allocation(u8 ** buffer)
 }
 
 
-#else
-#error "Unspecified allocation strategy.  Exiting."
-#endif
-
-
 // NOTE(Jesse): Always use the move constructor.
 // This is how apparently returning by value works : `return Str(buffer, length)`
 
@@ -269,14 +234,15 @@ struct Str {
   Str slice(int begin, int end)
   {
     umm size = end-begin;
+
+    printf("------------------------------------------- 0x%lx\n", (umm)buf);
     u8* buffer = Allocate(size+1, (u8*)&buf, allocation_type::Buffer);
+    printf("------------------------------------------- 0x%lx\n", (umm)buf);
     return Str(size, buffer);
   }
 
   unsigned long int len;
   u8* buf;
-
-  debug_mode_owner_pointer();
 };
 
 
@@ -288,7 +254,6 @@ MoveMemory(u8* Dest, u8* Src, umm size)
 }
 
 
-#if 1
 template<typename T>
 struct List {
 
@@ -301,7 +266,6 @@ struct List {
     umm buf_len = len*sizeof(T);
     buf = (T*)Allocate(buf_len, (u8*)&buf, allocation_type::List_Str);
     set_location_pointer((u8**)&buf);
-
     printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)&buf);
   }
 
@@ -325,7 +289,7 @@ struct List {
     Deallocate((u8*)buf);
   }
 
-  void push(T *element)
+  Str* push(T *element)
   {
     assert(at < len);
     printf("Pushing list element (%lu) :: Owned by 0x%lx\n", at, (umm)&buf);
@@ -345,6 +309,9 @@ struct List {
     at++;
 
     VerifyHeapIntegrity(&gHeap);
+
+
+    return bucket;
   }
 
   // NOTE(Jesse): This is here such that we can add elements that are created
@@ -357,18 +324,15 @@ struct List {
   // accept const references (temporary variables) for stuff that's stored
   // immediately afterwards.
   //
-  void push(const T &element)
+  Str* push(const T &element)
   {
-    push((T*)&element);
+    return push((T*)&element);
   }
 
   umm at;
   umm len;
   T *buf;
-
-  debug_mode_owner_pointer();
 };
-#endif
 
 // NOTE(Jesse): new_pointer_location is a pointer to a new container buffer.
 // When containers get copied they need to update their children to point to
@@ -489,6 +453,19 @@ int main()
 #if 1
   {
     Str thing1(32);
+    List<Str> list(8);
+
+    Str_ref* reference = list.push(thing1.slice(0,1));
+    Str slice = reference->slice(0,1);
+
+  }
+  collect();
+  assert_HeapEmpty(&gHeap);
+#endif
+
+#if 0
+  {
+    Str thing1(32);
     printf("---------- allocated\n");
     Str s2 = thing1.slice(0,1);
     ExampleFunction(thing1);
@@ -501,7 +478,7 @@ int main()
   assert_HeapEmpty(&gHeap);
 #endif
 
-#if 1
+#if 0
   {
     Str thing1(32);
     collect();
@@ -529,7 +506,7 @@ int main()
 #endif
 
 
-#if 1
+#if 0
   {
     Str thing(32);
     collect();
