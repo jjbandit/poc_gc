@@ -221,7 +221,21 @@ get_pointer_location(u8* buffer)
 #error "Unspecified allocation strategy.  Exiting."
 #endif
 
+
+// NOTE(Jesse): Always use the move constructor.
+// This is how apparently returning by value works : `return Str(buffer, length)`
+
+#define RESTRICT_TO_MOVE_OPERATOR(T_NAME__) \
+    T_NAME__(const T_NAME__ & obj) = delete; \
+    T_NAME__& operator=(T_NAME__ & other) = delete; \
+    T_NAME__& operator=(T_NAME__ && other) = delete; \
+    T_NAME__(T_NAME__ && source) = default;
+
+
 struct Str {
+
+  RESTRICT_TO_MOVE_OPERATOR(Str);
+
   Str(int len_init, u8* buf_init) {
     len = len_init;
     buf = buf_init;
@@ -235,14 +249,6 @@ struct Str {
     set_location_pointer(&buf);
     printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf);
   }
-
-  Str(const Str & obj) = delete;
-  Str& operator=(Str & other) = delete;
-  Str& operator=(Str && other) = delete;
-
-  // NOTE(Jesse): Always use the move constructor.
-  // This is how apparently returning by value works : `return Str(buffer, length)`
-  Str(Str && source) = default;
 
   ~Str() {
     if (get_pointer_location(buf) == &buf)
@@ -276,6 +282,9 @@ MoveMemory(u8* Dest, u8* Src, umm size)
 #if 1
 template<typename T>
 struct List {
+
+  RESTRICT_TO_MOVE_OPERATOR(List);
+
   List(int len_init) {
     at = 0;
     len = len_init;
