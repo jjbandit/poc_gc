@@ -482,7 +482,11 @@ int main()
     List<Str> list(8);
     collect();
 
-    /* list.push(&thing1); */
+    // Correctly asserts at runtime.  Error message could be better.
+#if 0
+    list.push(&thing1);
+    list.push(&thing1);
+#endif
 
     int i = 0;
     while (i++ < 3)
@@ -491,9 +495,6 @@ int main()
       collect();
       list.push(&thing2);
     }
-
-    list.push(&thing1);
-
     collect();
   }
   collect();
