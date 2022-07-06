@@ -23,7 +23,7 @@ typedef unsigned char u8;
 
 #define debug_mode_owner_pointer() void* owner;
 #define set_location_pointer(buf, owner_in) this->owner = owner_in;
-#define get_owner(buf) this->owner
+#define get_pointer_location(buf) this->owner
 
 #define Allocate(size, ...) Allocate_Internal(size)
 
@@ -78,7 +78,6 @@ struct allocation_tag
 {
   allocation_type Type;
   u8** pointer_location;
-  u8* owner;
   umm size;
 
   umm MAGIC_NUMBER;
@@ -131,6 +130,12 @@ CopyTo(heap *Dest, allocation_tag *Tag)
   return Result;
 }
 
+void assert_HeapEmpty(heap *H)
+{
+  assert(H->at == 0);
+  assert(H->allocations == 0);
+}
+
 void assert_PointerValidForHeap(heap *H, u8* pointer_location)
 {
   assert(pointer_location >= H->memory);
@@ -162,7 +167,6 @@ VerifyHeapIntegrity(heap *H)
     allocation_tag *Tag = (allocation_tag*)(current_memory + at);
     assert_TagValidForHeap(H, Tag);
     assert(Tag->size);
-    assert (Tag->owner);
     u8* current_buffer = GetBuffer(Tag);
     assert(*Tag->pointer_location == current_buffer);
 
@@ -182,7 +186,6 @@ u8* Allocate(umm bytes, u8* owner, allocation_type Type)
   allocation_tag *Tag = (allocation_tag*)(gHeap.memory + gHeap.at);
   Tag->Type = Type;
   Tag->size = bytes;
-  Tag->owner = owner;
   Tag->MAGIC_NUMBER = 0xDEADBEEF;
 
   gHeap.at += total_allocation_size;
@@ -194,26 +197,23 @@ void Deallocate(u8* Allocation)
 {
   printf("Deallocating 0x%lx\n", (umm)Allocation);
   allocation_tag *Tag = GetTag(Allocation);
-  assert(Tag->owner);
-  Tag->owner = 0;
+  Tag->pointer_location = 0;
 }
 
 void
-set_location_pointer(u8** pointer_location, u8* owner)
+set_location_pointer(u8** pointer_location)
 {
   allocation_tag *T = GetTag(*pointer_location);
   T->pointer_location = pointer_location;
-  T->owner = owner;
 
   VerifyHeapIntegrity(&gHeap);
 }
 
-u8*
-get_owner(u8* buffer)
+u8**
+get_pointer_location(u8* buffer)
 {
-  u8 *Result = 0;
-  if ( buffer ) { Result = GetTag(buffer)->owner; }
-
+  u8 **Result = 0;
+  if ( buffer ) { Result = GetTag(buffer)->pointer_location; }
   return Result;
 }
 
@@ -225,14 +225,14 @@ struct Str {
   Str(int len_init, u8* buf_init) {
     len = len_init;
     buf = buf_init;
-    set_location_pointer(&buf, (u8*)this);
+    set_location_pointer(&buf);
     printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf_init);
   }
 
   Str(int len_init) {
     len = len_init;
-    buf = Allocate(len+1, (u8*)this, allocation_type::Buffer);
-    set_location_pointer(&buf, (u8*)this);
+    buf = Allocate(len+1, (u8*)&buf, allocation_type::Buffer);
+    set_location_pointer(&buf);
     printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf);
   }
 
@@ -245,7 +245,7 @@ struct Str {
   Str(Str && source) = default;
 
   ~Str() {
-    if (get_owner(buf) == (u8*)this)
+    if (get_pointer_location(buf) == &buf)
     {
       Deallocate(buf);
     }
@@ -254,7 +254,7 @@ struct Str {
   Str slice(int begin, int end)
   {
     umm size = end-begin;
-    u8* buffer = Allocate(size+1, (u8*)this, allocation_type::Buffer);
+    u8* buffer = Allocate(size+1, (u8*)&buf, allocation_type::Buffer);
     return Str(size, buffer);
   }
 
@@ -281,10 +281,10 @@ struct List {
     len = len_init;
 
     umm buf_len = len*sizeof(T);
-    buf = (T*)Allocate(buf_len, (u8*)this, allocation_type::List_Str);
-    set_location_pointer((u8**)&buf, (u8*)this);
+    buf = (T*)Allocate(buf_len, (u8*)&buf, allocation_type::List_Str);
+    set_location_pointer((u8**)&buf);
 
-    printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)this);
+    printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)&buf);
   }
 
   /* List<T>(int len_init, u8* buf_init) { */
@@ -296,20 +296,20 @@ struct List {
   ~List() {
     for (int i = 0; i < len; ++i)
     {
-      if (get_owner(buf[i].buf) == (u8*)this)
+      if (get_pointer_location(buf[i].buf) == &buf[i].buf)
       {
         Deallocate(buf[i].buf);
       }
     }
 
-    printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)this);
+    printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&buf);
     Deallocate((u8*)buf);
   }
 
   void push(T *element)
   {
-    assert(this->at < this->len);
-    printf("Pushing list element (%lu) :: Owned by 0x%lx\n", at, (umm)this);
+    assert(at < len);
+    printf("Pushing list element (%lu) :: Owned by 0x%lx\n", at, (umm)&buf);
 
     T *bucket = buf+at;
 
@@ -318,7 +318,7 @@ struct List {
     // something, but it doesn't have to.
     MoveMemory((u8*)bucket, (u8*)element, sizeof(T));
 
-    set_location_pointer(&bucket->buf, (u8*)this);
+    set_location_pointer(&bucket->buf);
 
     allocation_tag* Tag = GetTag(bucket->buf);
     Tag->Type = allocation_type::Owned_Buffer;
@@ -387,7 +387,7 @@ void collect()
       allocation_tag *Tag = (allocation_tag*)(current_memory + at);
       assert(Tag->size);
 
-      if (Tag->owner)
+      if (Tag->pointer_location)
       {
         switch(Tag->Type)
         {
@@ -457,6 +457,7 @@ void collect()
 void ExampleFunction(const Str &input)
 {
   printf("---------- function start\n");
+  Str thing(32);
   collect();
   printf("---------- collection complete\n");
   return;
@@ -478,6 +479,7 @@ int main()
     ExampleFunction(thing1.slice(0,1));
   }
   collect();
+  assert_HeapEmpty(&gHeap);
 #endif
 
 #if 1
@@ -504,6 +506,7 @@ int main()
     collect();
   }
   collect();
+  assert_HeapEmpty(&gHeap);
 #endif
 
 
@@ -525,6 +528,7 @@ int main()
     collect();
   }
   collect();
+  assert_HeapEmpty(&gHeap);
 #endif
 
 }
