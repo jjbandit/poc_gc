@@ -351,8 +351,10 @@ struct List {
 };
 #endif
 
-
-allocation_tag *CopyBufferToHeap(heap *Heap, allocation_tag *Tag, u8** new_pointer_location = 0)
+// NOTE(Jesse): new_pointer_location is a pointer to a new container buffer.
+// When containers get copied they need to update their children to point to
+// the new memory location of the container.  This param is what does that.
+allocation_tag *CopyMemoryToNewHeap(heap *Heap, allocation_tag *Tag, u8** new_pointer_location = 0)
 {
   u8* current_buffer = GetBuffer(Tag);
   allocation_tag *NewTag = CopyTo(Heap, Tag);
@@ -391,17 +393,18 @@ void collect()
         {
           case allocation_type::Buffer:
           {
-            CopyBufferToHeap(&NewZone, Tag);
+            CopyMemoryToNewHeap(&NewZone, Tag);
           } break;
 
           case allocation_type::Owned_Buffer:
           {
-            // We already copied this allocation, or we will in the future
+            // It's owned by a container on the heap and will get copied by
+            // that container, if it's alive.
           } break;
 
           case allocation_type::List_Str:
           {
-            allocation_tag* NewContainerTag = CopyBufferToHeap(&NewZone, Tag);
+            allocation_tag* NewContainerTag = CopyMemoryToNewHeap(&NewZone, Tag);
             Str* ContainerBuffer = (Str*)GetBuffer(NewContainerTag);
             assert_TagValidForHeap(&NewZone, NewContainerTag);
             VerifyHeapIntegrity(&NewZone);
@@ -417,7 +420,7 @@ void collect()
                 assert_PointerValidForHeap(&gHeap, (u8*)ElementTag->pointer_location);
                 assert_PointerValidForHeap(&gHeap, (u8*)&ElementTag->pointer_location);
 
-                allocation_tag * NewElementTag = CopyBufferToHeap(&NewZone, ElementTag, &ElementBuffer->buf);
+                allocation_tag * NewElementTag = CopyMemoryToNewHeap(&NewZone, ElementTag, &ElementBuffer->buf);
                 assert_PointerValidForHeap(&NewZone, (u8*)NewElementTag->pointer_location);
                 assert_PointerValidForHeap(&NewZone, (u8*)&NewElementTag->pointer_location);
                 assert_TagValidForHeap(&NewZone, NewElementTag);
