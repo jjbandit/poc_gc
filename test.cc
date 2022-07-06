@@ -217,6 +217,15 @@ get_pointer_location(u8* buffer)
   return Result;
 }
 
+bool we_own_allocation(u8 ** buffer)
+{
+  assert(buffer);
+  assert(*buffer);
+  bool result = (get_pointer_location(*buffer) == buffer);
+  return result;
+}
+
+
 #else
 #error "Unspecified allocation strategy.  Exiting."
 #endif
@@ -251,7 +260,7 @@ struct Str {
   }
 
   ~Str() {
-    if (get_pointer_location(buf) == &buf)
+    if (buf && we_own_allocation(&buf))
     {
       Deallocate(buf);
     }
@@ -305,8 +314,9 @@ struct List {
   ~List() {
     for (int i = 0; i < len; ++i)
     {
-      if (get_pointer_location(buf[i].buf) == &buf[i].buf)
+      if (buf[i].buf)
       {
+        assert(we_own_allocation(&buf[i].buf));
         Deallocate(buf[i].buf);
       }
     }
