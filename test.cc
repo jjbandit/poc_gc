@@ -27,17 +27,18 @@ void ExampleFunction(const Str &input)
 }
 
 
-#define TEST_ALL 1
-#define TEST_1 (TEST_ALL || 0)
-#define TEST_2 (TEST_ALL || 0)
-#define TEST_3 (TEST_ALL || 0)
-#define TEST_4 (TEST_ALL || 0)
+#define TEST_ALL 0
+#define TEST_a (TEST_ALL || 1)
+#define TEST_b (TEST_ALL || 1)
+#define TEST_c (TEST_ALL || 1)
+#define TEST_d (TEST_ALL || 0)
 
 int main()
 {
   InitHeap(Megabytes(32));
 
-#if TEST_1
+#if TEST_a
+  printf("__ STARTING __ TEST 1 __\n");
   {
     Str thing1(32);
     printf("---------- allocated\n");
@@ -52,7 +53,8 @@ int main()
   assert_HeapEmpty(&gHeap);
 #endif
 
-#if TEST_2
+#if TEST_b
+  printf("__ STARTING __ TEST 2 __\n");
   {
     Str thing1(32);
     collect();
@@ -80,7 +82,8 @@ int main()
 #endif
 
 
-#if TEST_3
+#if TEST_c
+  printf("__ STARTING __ TEST 3 __\n");
   {
     Str thing(32);
     collect();
@@ -101,17 +104,19 @@ int main()
   assert_HeapEmpty(&gHeap);
 #endif
 
-#if TEST_4
+#if TEST_d
+  printf("__ STARTING __ TEST 4 __\n");
   {
     Str thing1(32);
     List<Str> list(8);
 
-    Str thing2(32);
+    Str_Ref reference = list.push(thing1);
 
-    /* thing1 = thing2; */
-
-    /* Str_Ref* reference = list.push(thing1.slice(0,1)); */
-    /* Str slice = reference->slice(0,1); */
+  collect();
+    { Str slice = reference.slice(0,1); }
+  collect();
+    /* { Str slice = reference.slice(0,1); } */
+  collect();
 
   }
   collect();

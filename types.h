@@ -1,5 +1,5 @@
-#define NotImplemented() assert(0)
-#define InvalidCodePath() assert(0)
+#define NotImplemented() assert(!"Not Implemented")
+#define InvalidCodePath() assert(!"Invalid Code Path")
 
 #define Kilobytes(n) ((n)<<10)
 #define Megabytes(n) ((n)<<20)

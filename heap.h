@@ -26,11 +26,17 @@ enum allocation_type
   Owned_Buffer,
 };
 
+struct Str;
+
+#define MAX_TAG_REFERENCES 8
 struct allocation_tag
 {
   allocation_type Type;
   u8** pointer_location;
   umm size;
+
+  u8 ref_count;
+  Str** references[MAX_TAG_REFERENCES]; // TODO(Jesse): This should be made dynamic eventually..
 
   umm MAGIC_NUMBER;
 };
@@ -110,6 +116,12 @@ void assert_TagValidForHeap(heap *H, allocation_tag *T)
   assert_HeapEnclosesBuffer(H, buffer, T->size);
 }
 
+void assert_AllocationValidForHeap(heap *H, u8* buffer)
+{
+  allocation_tag *T = GetTag(buffer);
+  assert_TagValidForHeap(H, T);
+}
+
 void
 VerifyHeapIntegrity(heap *H)
 {
@@ -129,7 +141,10 @@ VerifyHeapIntegrity(heap *H)
 
 void collect();
 
-u8* Allocate(umm bytes, u8* owner, allocation_type Type)
+// NOTE(Jesse): Sometimes, when
+#define ALLOCATION_OWNER_NONE ((u8**)1)
+
+u8* Allocate(umm bytes, u8** owner, allocation_type Type)
 {
   collect();
 
@@ -137,9 +152,12 @@ u8* Allocate(umm bytes, u8* owner, allocation_type Type)
   assert(gHeap.at + total_allocation_size < gHeap.size);
 
   allocation_tag *Tag = (allocation_tag*)(gHeap.memory + gHeap.at);
+  Tag->pointer_location = owner;
   Tag->Type = Type;
   Tag->size = bytes;
   Tag->MAGIC_NUMBER = 0xDEADBEEF;
+
+  assert(Tag->ref_count == 0);
 
   gHeap.at += total_allocation_size;
   ++gHeap.allocations;
@@ -153,8 +171,20 @@ void Deallocate(u8* Allocation)
   Tag->pointer_location = 0;
 }
 
+u8
+register_str_reference(u8* allocation, Str** pointer_location)
+{
+  allocation_tag *T = GetTag(allocation);
+  assert(T->ref_count < MAX_TAG_REFERENCES);
+
+  u8 ref_number = T->ref_count++;
+  T->references[ref_number] = pointer_location;
+
+  return ref_number;
+}
+
 void
-set_location_pointer(u8** pointer_location)
+take_ownership(u8** pointer_location)
 {
   allocation_tag *T = GetTag(*pointer_location);
   T->pointer_location = pointer_location;
@@ -179,15 +209,22 @@ bool we_own_allocation(u8 ** buffer)
 }
 
 void
-MoveMemory(u8* Dest, u8* Src, umm size)
+CopyMemory(u8* Dest, u8* Src, umm size)
 {
   memcpy(Dest, Src, size);
+}
+
+void
+MoveMemory(u8* Dest, u8* Src, umm size)
+{
+  CopyMemory(Dest, Src, size);
   memset(Src, 0, size);
 }
+
 // NOTE(Jesse): new_pointer_location is a pointer to a new container buffer.
 // When containers get copied they need to update their children to point to
 // the new memory location of the container.  This param is what does that.
-allocation_tag *CopyMemoryToNewHeap(heap *Heap, allocation_tag *Tag, u8** new_pointer_location = 0)
+allocation_tag *CopyTagAndBuffer(heap *Heap, allocation_tag *Tag, u8** new_pointer_location = 0)
 {
   u8* current_buffer = GetBuffer(Tag);
   allocation_tag *NewTag = CopyTo(Heap, Tag);

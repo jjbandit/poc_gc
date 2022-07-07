@@ -17,7 +17,7 @@ void collect()
         {
           case allocation_type::Buffer:
           {
-            CopyMemoryToNewHeap(&NewZone, Tag);
+            CopyTagAndBuffer(&NewZone, Tag);
           } break;
 
           case allocation_type::Owned_Buffer:
@@ -28,7 +28,7 @@ void collect()
 
           case allocation_type::List_Str:
           {
-            allocation_tag* NewContainerTag = CopyMemoryToNewHeap(&NewZone, Tag);
+            allocation_tag* NewContainerTag = CopyTagAndBuffer(&NewZone, Tag);
             Str* ContainerBuffer = (Str*)GetBuffer(NewContainerTag);
             assert_TagValidForHeap(&NewZone, NewContainerTag);
             VerifyHeapIntegrity(&NewZone);
@@ -36,20 +36,27 @@ void collect()
             umm element_count = Tag->size/sizeof(Str);
             for (umm element_index = 0; element_index < element_count; ++element_index)
             {
-              Str* ElementBuffer = ContainerBuffer + element_index;
-              if (ElementBuffer->buf)
+              Str* NewElement = ContainerBuffer + element_index;
+              if (NewElement->buf)
               {
-                allocation_tag *ElementTag = GetTag(ElementBuffer->buf);
+                allocation_tag *ElementTag = GetTag(NewElement->buf);
                 assert(ElementTag->Type == allocation_type::Owned_Buffer);
                 assert_PointerValidForHeap(&gHeap, (u8*)ElementTag->pointer_location);
                 assert_PointerValidForHeap(&gHeap, (u8*)&ElementTag->pointer_location);
 
-                allocation_tag * NewElementTag = CopyMemoryToNewHeap(&NewZone, ElementTag, &ElementBuffer->buf);
+                allocation_tag * NewElementTag = CopyTagAndBuffer(&NewZone, ElementTag, &NewElement->buf);
                 assert_PointerValidForHeap(&NewZone, (u8*)NewElementTag->pointer_location);
                 assert_PointerValidForHeap(&NewZone, (u8*)&NewElementTag->pointer_location);
                 assert_TagValidForHeap(&NewZone, NewElementTag);
                 VerifyHeapIntegrity(&NewZone);
+
+                for (umm ref_index = 0; ref_index < NewElementTag->ref_count; ++ref_index)
+                {
+                  NewElementTag->references[ref_index][0] = NewElement;
+                }
+
               }
+
             }
 
           } break;

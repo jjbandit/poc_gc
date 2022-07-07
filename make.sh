@@ -5,6 +5,7 @@ set -o pipefail
 set -o nounset
 
 clang++ \
+  -Wall \
   -D GC_ALLOC=1 \
   -fsanitize=address \
   -fno-omit-frame-pointer \
