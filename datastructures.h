@@ -7,13 +7,14 @@
     T_NAME__& operator=(T_NAME__ && other) = delete; \
     T_NAME__(T_NAME__ && source) = default
 
+template <typename T>
 struct buf_ref
 {
   RESTRICT_TO_MOVE_OPERATOR(buf_ref);
 
-  buf_ref(u8 *element_init):
+  buf_ref(T *element_init):
     element(element_init),
-    ref_number(register_buf_reference(element, &element))
+    ref_number(register_reference<u8>(element, &element))
   {
     printf("buf_ref_construct 0x%lx\n", (umm)element_init);
   }
@@ -21,13 +22,13 @@ struct buf_ref
   ~buf_ref()
   {
     printf("buf_ref_destruct  0x%lx\n", (umm)element);
-    if (element && we_own_allocation(&element))
-    {
-      Deallocate(element);
-    }
+
+    // NOTE(Jesse): Once that's done we also need to put logic in to search for an open slot
+    // when allocating, instead of just incrementing and overwriting.
+    printf("TODO(Jesse): This needs to pull the reference off the allocation_tag list\n");
   }
 
-  u8* element;
+  T* element;
   u8 ref_number;
 };
 
@@ -58,6 +59,10 @@ struct buf_handle
     if (element && we_own_allocation((u8**)&element))
     {
       Deallocate((u8*)element);
+    }
+    else
+    {
+      // NOTE(Jesse): We transferred ownership to another container.
     }
   }
 
@@ -104,7 +109,7 @@ struct Str
   buf_handle<u8> buf;
 };
 
-Str slice(buf_ref src, umm begin, umm end)
+Str slice(buf_ref<u8> src, umm begin, umm end)
 {
   printf("slice start\n");
   allocation_tag *Tag  = GetTag(src.element);
@@ -129,7 +134,7 @@ struct Str_Ref
   Str_Ref(Str* string)
   {
     this->element = string;
-    this->ref_number = register_str_reference(string->buf.element, &this->element);
+    this->ref_number = register_reference<Str>(string->buf.element, &this->element);
   }
 
   ~Str_Ref()
@@ -174,18 +179,18 @@ struct List
   /*   printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)buf); */
   /* } */
 
-  /* ~List() { */
-  /*   for (int i = 0; i < len; ++i) */
-  /*   { */
-  /*     if (buf[i].element) */
-  /*     { */
-  /*       assert(we_own_allocation(&buf[i].buf)); */
-  /*       Deallocate(buf[i].buf); */
-  /*     } */
-  /*   } */
-  /*   printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&buf); */
-  /*   Deallocate((u8*)buf); */
-  /* } */
+  ~List() {
+    for (int i = 0; i < len; ++i)
+    {
+      if (buf.element[i].buf.element)
+      {
+        assert(we_own_allocation(&buf.element[i].buf.element));
+        Deallocate<u8>(buf.element[i].buf.element);
+      }
+    }
+    printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&buf);
+    Deallocate<Str>(buf.element);
+  }
 
 #if 0
   Str_Ref push(T *element)

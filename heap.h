@@ -57,11 +57,11 @@ heap AllocateHeap(umm bytes)
   return Result;
 }
 
-inline allocation_tag*
-GetTag(u8* buffer)
+template <typename T>
+inline allocation_tag* GetTag(T *buffer)
 {
   assert(buffer);
-  allocation_tag *result = (allocation_tag*)( buffer - sizeof(allocation_tag) );
+  allocation_tag *result = (allocation_tag*)( ((u8*)buffer) - sizeof(allocation_tag) );
   assert(result->MAGIC_NUMBER == 0xDEADBEEF);
   return result;
 }
@@ -157,21 +157,24 @@ void Deallocate(u8* Allocation)
   Tag->pointer_location = 0;
 }
 
-u8 register_buf_reference(u8* allocation, u8** pointer_location)
+template <typename T>
+void Deallocate(buf_handle<T> Handle)
 {
-  allocation_tag *T = GetTag(allocation);
-  assert(T->ref_count < MAX_TAG_REFERENCES);
-  u8 ref_number = T->ref_count++;
-  T->references[ref_number] = pointer_location;
-  return ref_number;
+  printf("Deallocating 0x%lx\n", (umm)Handle.element);
+  allocation_tag *Tag = GetTag(Handle.element);
+  Tag->pointer_location = 0;
 }
 
-u8 register_str_reference(u8* allocation, Str** pointer_location)
+template <typename T>
+u8 register_reference(u8* allocation, T** pointer_location)
 {
-  allocation_tag *T = GetTag(allocation);
-  assert(T->ref_count < MAX_TAG_REFERENCES);
-  u8 ref_number = T->ref_count++;
-  T->references[ref_number] = (u8**)pointer_location;
+  allocation_tag *Tag = GetTag(allocation);
+  assert(Tag->ref_count < MAX_TAG_REFERENCES);
+
+  u8 ref_number = Tag->ref_count++;
+  assert(Tag->references[ref_number] == 0);
+
+  Tag->references[ref_number] = reinterpret_cast<u8**>(pointer_location);
   return ref_number;
 }
 

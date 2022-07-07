@@ -17,7 +17,7 @@
 
 
 
-Str replace(buf_ref Source, buf_ref ReplacementPattern)
+Str replace(buf_ref<u8> Source, buf_ref<u8> ReplacementPattern)
 {
   printf("---------- function start\n");
 
@@ -70,7 +70,7 @@ int main()
 
     printf("-----------------\n");
 
-    Str s2 = slice(buf_ref(thing1.buf.element), 0, 1);
+    Str s2 = slice(buf_ref<u8>(thing1.buf.element), 0, 1);
     collect();
 
     printf("-----------------\n");
@@ -85,7 +85,7 @@ int main()
 #endif
 
 #if TEST_b
-  printf("__ STARTING __ TEST 2 __\n");
+  printf("__ STARTING __ TEST b __\n");
   {
     Str thing1(32);
     collect();
@@ -93,7 +93,7 @@ int main()
     List<Str> list(8);
     collect();
 
-    list.push(&thing1);
+    /* list.push(&thing1); */
 
     // Correctly asserts at runtime.  Error message could be better.
 #if 0
