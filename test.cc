@@ -17,37 +17,56 @@
 
 
 
-void ExampleFunction(const Str &input)
+Str replace(buf_ref Source, buf_ref ReplacementPattern)
 {
   printf("---------- function start\n");
-  Str thing(32);
+
   collect();
+
+  Str Result(1, Allocate(4, allocation_type::Buffer));
+  CopyMemory(Result.buf.element, Source.element, 1);
   printf("---------- collection complete\n");
-  return;
+  return Result;
 }
 
 
 #define TEST_ALL 0
+#define TEST_e (TEST_ALL || 1)
 #define TEST_a (TEST_ALL || 1)
-#define TEST_b (TEST_ALL || 1)
-#define TEST_c (TEST_ALL || 1)
+#define TEST_b (TEST_ALL || 0)
+#define TEST_c (TEST_ALL || 0)
 #define TEST_d (TEST_ALL || 0)
 
 int main()
 {
   InitHeap(Megabytes(32));
 
+#if TEST_e
+  printf("__ STARTING __ TEST e __\n");
+  {
+    Str thing1(32);
+  }
+  collect();
+  assert_HeapEmpty(&gHeap);
+#endif
+
 #if TEST_a
   printf("__ STARTING __ TEST 1 __\n");
   {
     Str thing1(32);
-    printf("---------- allocated\n");
-    Str s2 = thing1.slice(0,1);
-    ExampleFunction(thing1);
-    printf("---------- function complete\n");
     collect();
 
-    ExampleFunction(thing1.slice(0,1));
+    printf("-----------------\n");
+
+    Str s2 = slice(buf_ref(thing1.buf.element), 0, 1);
+    collect();
+
+    printf("-----------------\n");
+
+    /* Str s3 = replace(buf_ref(thing1.buf.element), buf_ref(s2.buf.element)); */
+    /* collect(); */
+
+    /* ExampleFunction(thing1.slice(0,1)); */
   }
   collect();
   assert_HeapEmpty(&gHeap);

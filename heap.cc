@@ -1,5 +1,27 @@
+
+buf_handle Allocate(umm bytes, allocation_type Type)
+{
+  collect();
+
+  umm total_allocation_size = (sizeof(allocation_tag) + bytes);
+  assert(gHeap.at + total_allocation_size < gHeap.size);
+
+  allocation_tag *Tag = (allocation_tag*)(gHeap.memory + gHeap.at);
+  Tag->Type = Type;
+  Tag->size = bytes;
+  Tag->MAGIC_NUMBER = 0xDEADBEEF;
+
+  assert(Tag->ref_count == 0);
+
+  gHeap.at += total_allocation_size;
+  ++gHeap.allocations;
+  return buf_handle(GetBuffer(Tag));
+}
+
+
 void collect()
 {
+  printf(" ----- collecting --------\n");
   heap NewZone = AllocateHeap(Megabytes(32));
   VerifyHeapIntegrity(&NewZone);
 
@@ -17,7 +39,13 @@ void collect()
         {
           case allocation_type::Buffer:
           {
-            CopyTagAndBuffer(&NewZone, Tag);
+            allocation_tag *NewTag = CopyTagAndBuffer(&NewZone, Tag);
+            u8* NewBuffer = GetBuffer(NewTag);
+            for (umm ref_index = 0; ref_index < NewTag->ref_count; ++ref_index)
+            {
+              NewTag->references[ref_index][0] = NewBuffer;
+            }
+
           } break;
 
           case allocation_type::Owned_Buffer:
@@ -37,14 +65,14 @@ void collect()
             for (umm element_index = 0; element_index < element_count; ++element_index)
             {
               Str* NewElement = ContainerBuffer + element_index;
-              if (NewElement->buf)
+              if (NewElement->buf.element)
               {
-                allocation_tag *ElementTag = GetTag(NewElement->buf);
+                allocation_tag *ElementTag = GetTag(NewElement->buf.element);
                 assert(ElementTag->Type == allocation_type::Owned_Buffer);
                 assert_PointerValidForHeap(&gHeap, (u8*)ElementTag->pointer_location);
                 assert_PointerValidForHeap(&gHeap, (u8*)&ElementTag->pointer_location);
 
-                allocation_tag * NewElementTag = CopyTagAndBuffer(&NewZone, ElementTag, &NewElement->buf);
+                allocation_tag * NewElementTag = CopyTagAndBuffer(&NewZone, ElementTag, &NewElement->buf.element);
                 assert_PointerValidForHeap(&NewZone, (u8*)NewElementTag->pointer_location);
                 assert_PointerValidForHeap(&NewZone, (u8*)&NewElementTag->pointer_location);
                 assert_TagValidForHeap(&NewZone, NewElementTag);
@@ -52,7 +80,7 @@ void collect()
 
                 for (umm ref_index = 0; ref_index < NewElementTag->ref_count; ++ref_index)
                 {
-                  NewElementTag->references[ref_index][0] = NewElement;
+                  NewElementTag->references[ref_index][0] = (u8*)NewElement;
                 }
 
               }

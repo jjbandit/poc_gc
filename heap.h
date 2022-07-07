@@ -10,7 +10,8 @@ struct heap
 
 heap gHeap;
 
-void InitHeap(umm bytes) {
+void InitHeap(umm bytes)
+{
   gHeap.memory = (u8*)calloc(bytes, 1);
   gHeap.size = bytes;
   gHeap.allocations = 0;
@@ -26,6 +27,9 @@ enum allocation_type
   Owned_Buffer,
 };
 
+struct buf_handle;
+buf_handle Allocate(umm bytes, allocation_type Type);
+
 struct Str;
 
 #define MAX_TAG_REFERENCES 8
@@ -36,7 +40,7 @@ struct allocation_tag
   umm size;
 
   u8 ref_count;
-  Str** references[MAX_TAG_REFERENCES]; // TODO(Jesse): This should be made dynamic eventually..
+  u8** references[MAX_TAG_REFERENCES]; // TODO(Jesse): This should be made dynamic eventually..
 
   umm MAGIC_NUMBER;
 };
@@ -144,26 +148,6 @@ void collect();
 // NOTE(Jesse): Sometimes, when
 #define ALLOCATION_OWNER_NONE ((u8**)1)
 
-u8* Allocate(umm bytes, u8** owner, allocation_type Type)
-{
-  collect();
-
-  umm total_allocation_size = (sizeof(allocation_tag) + bytes);
-  assert(gHeap.at + total_allocation_size < gHeap.size);
-
-  allocation_tag *Tag = (allocation_tag*)(gHeap.memory + gHeap.at);
-  Tag->pointer_location = owner;
-  Tag->Type = Type;
-  Tag->size = bytes;
-  Tag->MAGIC_NUMBER = 0xDEADBEEF;
-
-  assert(Tag->ref_count == 0);
-
-  gHeap.at += total_allocation_size;
-  ++gHeap.allocations;
-  return GetBuffer(Tag);
-}
-
 void Deallocate(u8* Allocation)
 {
   printf("Deallocating 0x%lx\n", (umm)Allocation);
@@ -171,15 +155,21 @@ void Deallocate(u8* Allocation)
   Tag->pointer_location = 0;
 }
 
-u8
-register_str_reference(u8* allocation, Str** pointer_location)
+u8 register_buf_reference(u8* allocation, u8** pointer_location)
 {
   allocation_tag *T = GetTag(allocation);
   assert(T->ref_count < MAX_TAG_REFERENCES);
-
   u8 ref_number = T->ref_count++;
   T->references[ref_number] = pointer_location;
+  return ref_number;
+}
 
+u8 register_str_reference(u8* allocation, Str** pointer_location)
+{
+  allocation_tag *T = GetTag(allocation);
+  assert(T->ref_count < MAX_TAG_REFERENCES);
+  u8 ref_number = T->ref_count++;
+  T->references[ref_number] = (u8**)pointer_location;
   return ref_number;
 }
 
