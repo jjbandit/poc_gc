@@ -1,21 +1,23 @@
 
-buf_handle Allocate(umm bytes, allocation_type Type)
+template <typename T>
+buf_handle<T> Allocate(umm elements, allocation_type Type)
 {
   collect();
 
-  umm total_allocation_size = (sizeof(allocation_tag) + bytes);
+  umm element_buffer_size = (sizeof(T)*elements);
+  umm total_allocation_size = (sizeof(allocation_tag) + element_buffer_size);
   assert(gHeap.at + total_allocation_size < gHeap.size);
 
   allocation_tag *Tag = (allocation_tag*)(gHeap.memory + gHeap.at);
   Tag->Type = Type;
-  Tag->size = bytes;
+  Tag->size = element_buffer_size;
   Tag->MAGIC_NUMBER = 0xDEADBEEF;
 
   assert(Tag->ref_count == 0);
 
   gHeap.at += total_allocation_size;
   ++gHeap.allocations;
-  return buf_handle(GetBuffer(Tag));
+  return buf_handle<T>(reinterpret_cast<T*>(GetBuffer(Tag)));
 }
 
 

@@ -31,6 +31,7 @@ struct buf_ref
   u8 ref_number;
 };
 
+template <typename T>
 struct buf_handle
 {
   buf_handle& operator=(buf_handle & other) = delete;
@@ -41,31 +42,26 @@ struct buf_handle
     element(source.element)
   {
     printf("buf_handle move construct 0x%lx\n", (umm)source.element);
-    take_ownership(&element);
+    take_ownership((u8**)&element);
   }
 
-  /* buf_handle(const buf_handle & init) */
-  /* { */
-  /*   printf("buf_handle construct by reference 0x%lx\n", (umm)init.element); */
-  /* } */
-
-  buf_handle(u8 *element_init):
+  buf_handle(T *element_init):
     element(element_init)
   {
     printf("buf_handle construct 0x%lx\n", (umm)element_init);
-    take_ownership(&element);
+    take_ownership((u8**)&element);
   }
 
   ~buf_handle()
   {
     printf("buf_handle_destruct  0x%lx\n", (umm)element);
-    if (element && we_own_allocation(&element))
+    if (element && we_own_allocation((u8**)&element))
     {
-      Deallocate(element);
+      Deallocate((u8*)element);
     }
   }
 
-  u8* element;
+  T *element;
 };
 
 
@@ -73,7 +69,7 @@ struct Str
 {
   RESTRICT_TO_MOVE_OPERATOR(Str);
 
-  Str(int len_init, buf_handle buffer):
+  Str(int len_init, buf_handle<u8> buffer):
     len(len_init),
     buf(std::move(buffer))
   {
@@ -89,7 +85,7 @@ struct Str
 
   Str(int len_init):
     len(len_init),
-    buf(Allocate(len+1, allocation_type::Buffer))
+    buf(Allocate<u8>(len+1, allocation_type::Buffer))
   {
     printf("Initialized Str(%lu)\n", len);
   }
@@ -105,7 +101,7 @@ struct Str
   /* } */
 
   umm len;
-  buf_handle buf;
+  buf_handle<u8> buf;
 };
 
 Str slice(buf_ref src, umm begin, umm end)
@@ -117,7 +113,7 @@ Str slice(buf_ref src, umm begin, umm end)
   assert(begin == 0);
   assert(size <= Tag->size);
 
-  buf_handle buf = Allocate(size+1, allocation_type::Buffer);
+  auto buf = Allocate<u8>(size+1, allocation_type::Buffer);
   CopyMemory(buf.element, src.element, size);
 
   printf("slice end\n");
@@ -155,18 +151,21 @@ struct Str_Ref
 
 };
 
-#if 0
 template<typename T>
-struct List {
-
+struct List
+{
   RESTRICT_TO_MOVE_OPERATOR(List);
 
-  List(int len_init) {
-    at = 0;
-    len = len_init;
-    umm buf_len = len*sizeof(T);
-    buf = (T*)Allocate(buf_len, (u8**)&buf, allocation_type::List_Str);
-    printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)&buf);
+  umm at;
+  umm len;
+  buf_handle<T> buf;
+
+  List(int elements):
+    at(0),
+    len(elements),
+    buf(Allocate<T>(elements, allocation_type::List_Str))
+  {
+    printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)&buf.element);
   }
 
   /* List<T>(int len_init, u8* buf_init) { */
@@ -175,20 +174,20 @@ struct List {
   /*   printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)buf); */
   /* } */
 
-  ~List() {
-    for (int i = 0; i < len; ++i)
-    {
-      if (buf[i].buf)
-      {
-        assert(we_own_allocation(&buf[i].buf));
-        Deallocate(buf[i].buf);
-      }
-    }
+  /* ~List() { */
+  /*   for (int i = 0; i < len; ++i) */
+  /*   { */
+  /*     if (buf[i].element) */
+  /*     { */
+  /*       assert(we_own_allocation(&buf[i].buf)); */
+  /*       Deallocate(buf[i].buf); */
+  /*     } */
+  /*   } */
+  /*   printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&buf); */
+  /*   Deallocate((u8*)buf); */
+  /* } */
 
-    printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&buf);
-    Deallocate((u8*)buf);
-  }
-
+#if 0
   Str_Ref push(T *element)
   {
     assert(at < len);
@@ -224,10 +223,5 @@ struct List {
   {
     return push((T*)&element);
   }
-
-  umm at;
-  umm len;
-  T *buf;
-};
 #endif
-
+};

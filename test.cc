@@ -23,7 +23,7 @@ Str replace(buf_ref Source, buf_ref ReplacementPattern)
 
   collect();
 
-  Str Result(1, Allocate(4, allocation_type::Buffer));
+  Str Result(1, Allocate<u8>(4, allocation_type::Buffer));
   CopyMemory(Result.buf.element, Source.element, 1);
   printf("---------- collection complete\n");
   return Result;
@@ -31,9 +31,10 @@ Str replace(buf_ref Source, buf_ref ReplacementPattern)
 
 
 #define TEST_ALL 0
-#define TEST_e (TEST_ALL || 1)
-#define TEST_a (TEST_ALL || 1)
-#define TEST_b (TEST_ALL || 0)
+#define TEST_e (TEST_ALL || 0)
+#define TEST_f (TEST_ALL || 0)
+#define TEST_a (TEST_ALL || 0)
+#define TEST_b (TEST_ALL || 1)
 #define TEST_c (TEST_ALL || 0)
 #define TEST_d (TEST_ALL || 0)
 
@@ -50,8 +51,19 @@ int main()
   assert_HeapEmpty(&gHeap);
 #endif
 
+#if TEST_f
+  printf("__ STARTING __ TEST f __\n");
+  for (int i = 0; i < 5; ++i)
+  {
+    Str thing1(32);
+    collect();
+  }
+  collect();
+  assert_HeapEmpty(&gHeap);
+#endif
+
 #if TEST_a
-  printf("__ STARTING __ TEST 1 __\n");
+  printf("__ STARTING __ TEST a __\n");
   {
     Str thing1(32);
     collect();
@@ -81,20 +93,23 @@ int main()
     List<Str> list(8);
     collect();
 
+    list.push(&thing1);
+
     // Correctly asserts at runtime.  Error message could be better.
 #if 0
     list.push(&thing1);
     list.push(&thing1);
 #endif
 
-    int i = 0;
-    while (i++ < 3)
-    {
-      Str thing2(32);
-      collect();
-      list.push(&thing2);
-    }
-    collect();
+    /* int i = 0; */
+    /* while (i++ < 3) */
+    /* { */
+    /*   Str thing2(32); */
+    /*   collect(); */
+    /*   list.push(&thing2); */
+    /* } */
+    /* collect(); */
+
   }
   collect();
   assert_HeapEmpty(&gHeap);

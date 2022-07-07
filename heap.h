@@ -27,8 +27,10 @@ enum allocation_type
   Owned_Buffer,
 };
 
-struct buf_handle;
-buf_handle Allocate(umm bytes, allocation_type Type);
+template <typename T> struct buf_handle;
+
+template <typename T> buf_handle<T>
+Allocate(umm bytes, allocation_type Type);
 
 struct Str;
 
