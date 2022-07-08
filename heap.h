@@ -158,10 +158,10 @@ void Deallocate(u8* Allocation)
 }
 
 template <typename T>
-void Deallocate(buf_handle<T> Handle)
+void Deallocate(buf_handle<T> * Handle)
 {
-  printf("Deallocating 0x%lx\n", (umm)Handle.element);
-  allocation_tag *Tag = GetTag(Handle.element);
+  printf("Deallocating 0x%lx\n", (umm)Handle->element);
+  allocation_tag *Tag = GetTag(Handle->element);
   Tag->pointer_location = 0;
 }
 

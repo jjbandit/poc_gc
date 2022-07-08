@@ -88,27 +88,26 @@ int main()
   printf("__ STARTING __ TEST b __\n");
   {
     Str thing1(32);
-    collect();
 
     List<Str> list(8);
+
+#if 1
+    buf_ref<u8> thing1_ref = list.push(&thing1);
     collect();
-
-    /* list.push(&thing1); */
-
+#else
     // Correctly asserts at runtime.  Error message could be better.
-#if 0
     list.push(&thing1);
     list.push(&thing1);
 #endif
 
-    /* int i = 0; */
-    /* while (i++ < 3) */
-    /* { */
-    /*   Str thing2(32); */
-    /*   collect(); */
-    /*   list.push(&thing2); */
-    /* } */
-    /* collect(); */
+    int i = 0;
+    while (i++ < 3)
+    {
+      Str thing2(32);
+      collect();
+      list.push(&thing2);
+    }
+    collect();
 
   }
   collect();

@@ -1,6 +1,5 @@
 // NOTE(Jesse): Always use the move constructor.
-// This is how apparently returning by value works : `return Str(buffer, length)`
-
+// This is how _appearing_ to return by value works : `return Str(buffer, length)`
 #define RESTRICT_TO_MOVE_OPERATOR(T_NAME__) \
     T_NAME__(const T_NAME__ & obj) = delete; \
     T_NAME__& operator=(T_NAME__ & other) = delete; \
@@ -127,34 +126,32 @@ Str slice(buf_ref<u8> src, umm begin, umm end)
 ;
 }
 
-struct Str_Ref
-{
-  RESTRICT_TO_MOVE_OPERATOR(Str_Ref);
+/* struct Str_Ref */
+/* { */
+/*   RESTRICT_TO_MOVE_OPERATOR(Str_Ref); */
 
-  Str_Ref(Str* string)
-  {
-    this->element = string;
-    this->ref_number = register_reference<Str>(string->buf.element, &this->element);
-  }
+/*   buf_ref<Str> * element; */
+/*   u8 ref_number; */
 
-  ~Str_Ref()
-  {
-    printf("Leaking!\n");
-    NotImplemented();
-  }
+/*   Str_Ref(Str* string) */
+/*   { */
+/*   } */
 
-  Str* element;
-  u8 ref_number;
+/*   ~Str_Ref() */
+/*   { */
+/*     printf("Leaking!\n"); */
+/*     NotImplemented(); */
+/*   } */
 
-  /* Str slice(int start, int end) */
-  /* { */
-  /*   assert_PointerValidForHeap(&gHeap, (u8*)this->element); */
-  /*   assert_AllocationValidForHeap(&gHeap, this->element->buf); */
-  /*   printf("ref-slice 0x%lx\n", (umm)this->element->buf); */
-  /*   return this->element->slice(start, end); */
-  /* } */
+/*   /1* Str slice(int start, int end) *1/ */
+/*   /1* { *1/ */
+/*   /1*   assert_PointerValidForHeap(&gHeap, (u8*)this->element); *1/ */
+/*   /1*   assert_AllocationValidForHeap(&gHeap, this->element->buf); *1/ */
+/*   /1*   printf("ref-slice 0x%lx\n", (umm)this->element->buf); *1/ */
+/*   /1*   return this->element->slice(start, end); *1/ */
+/*   /1* } *1/ */
 
-};
+/* }; */
 
 template<typename T>
 struct List
@@ -185,35 +182,36 @@ struct List
       if (buf.element[i].buf.element)
       {
         assert(we_own_allocation(&buf.element[i].buf.element));
-        Deallocate<u8>(buf.element[i].buf.element);
+        Deallocate<u8>(&buf.element[i].buf);
       }
     }
     printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&buf);
-    Deallocate<Str>(buf.element);
+    Deallocate<Str>(&buf);
   }
 
-#if 0
-  Str_Ref push(T *element)
+  /* void push(T *element) */
+  buf_ref<u8> push(T *element)
   {
     assert(at < len);
     printf("Pushing list element (%lu) :: Owned by 0x%lx\n", at, (umm)&buf);
 
-    T *bucket = buf+at;
+    T *bucket = buf.element + at;
 
     MoveMemory((u8*)bucket, (u8*)element, sizeof(T));
 
-    take_ownership(&bucket->buf);
+    take_ownership((u8**)&bucket->buf);
 
-    allocation_tag* Tag = GetTag(bucket->buf);
+    allocation_tag* Tag = GetTag(bucket->buf.element);
     Tag->Type = allocation_type::Owned_Buffer;
 
     at++;
 
     VerifyHeapIntegrity(&gHeap);
 
-    return Str_Ref(bucket);
+    return buf_ref<u8>(bucket->buf.element);
   }
 
+#if 0
   // NOTE(Jesse): This is here such that we can add elements that are created
   // from temporaries.  This is unsafe, but works because the element is
   // immediately copied into the permanent storage of this container.  Somewhat
