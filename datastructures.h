@@ -34,6 +34,8 @@ struct buf_ref
 template <typename T>
 struct buf_handle
 {
+  T *element;
+
   buf_handle& operator=(buf_handle & other) = delete;
   buf_handle& operator=(buf_handle && other) = delete;
   buf_handle(buf_handle & obj) = delete;
@@ -64,8 +66,6 @@ struct buf_handle
       // NOTE(Jesse): We transferred ownership to another container.
     }
   }
-
-  T *element;
 };
 
 
@@ -73,10 +73,24 @@ struct Str
 {
   RESTRICT_TO_MOVE_OPERATOR(Str);
 
+  umm len;
+  buf_handle<u8> buf;
+
   Str(int len_init, buf_handle<u8> buffer):
     len(len_init),
     buf(std::move(buffer))
   {
+    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf.element);
+  }
+
+  // NOTE(Jesse): If we were more clever about .. something .. we wouldn't have
+  // to copy const strings onto the heap.  I'm not sure what the best way of
+  // handling this is, but surely there is one.
+  Str(int len_init, const char* buffer):
+    len(len_init),
+    buf(Allocate<u8>(len+1, allocation_type::Buffer))
+  {
+    CopyMemory(buf.element, (u8*)buffer, len_init);
     printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf.element);
   }
 
@@ -104,8 +118,6 @@ struct Str
   /*   return ::slice(buf, begin, end); */
   /* } */
 
-  umm len;
-  buf_handle<u8> buf;
 };
 
 Str slice(buf_ref<u8> src, umm begin, umm end)
@@ -126,32 +138,32 @@ Str slice(buf_ref<u8> src, umm begin, umm end)
 ;
 }
 
-/* struct Str_Ref */
-/* { */
-/*   RESTRICT_TO_MOVE_OPERATOR(Str_Ref); */
+struct Str_Ref
+{
+  RESTRICT_TO_MOVE_OPERATOR(Str_Ref);
 
-/*   buf_ref<Str> * element; */
-/*   u8 ref_number; */
+  buf_ref<u8> buf;
 
-/*   Str_Ref(Str* string) */
-/*   { */
-/*   } */
+  Str_Ref(buf_ref<u8> & buf_init):
+    buf(std::move(buf_init))
+  {
+  }
 
-/*   ~Str_Ref() */
-/*   { */
-/*     printf("Leaking!\n"); */
-/*     NotImplemented(); */
-/*   } */
+  ~Str_Ref()
+  {
+    printf("Leaking!\n");
+    /* NotImplemented(); */
+  }
 
-/*   /1* Str slice(int start, int end) *1/ */
-/*   /1* { *1/ */
-/*   /1*   assert_PointerValidForHeap(&gHeap, (u8*)this->element); *1/ */
-/*   /1*   assert_AllocationValidForHeap(&gHeap, this->element->buf); *1/ */
-/*   /1*   printf("ref-slice 0x%lx\n", (umm)this->element->buf); *1/ */
-/*   /1*   return this->element->slice(start, end); *1/ */
-/*   /1* } *1/ */
+  /* Str slice(int start, int end) */
+  /* { */
+  /*   assert_PointerValidForHeap(&gHeap, (u8*)this->element); */
+  /*   assert_AllocationValidForHeap(&gHeap, this->element->buf); */
+  /*   printf("ref-slice 0x%lx\n", (umm)this->element->buf); */
+  /*   return this->element->slice(start, end); */
+  /* } */
 
-/* }; */
+};
 
 template<typename T>
 struct List

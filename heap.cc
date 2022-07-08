@@ -43,6 +43,7 @@ void collect()
           {
             allocation_tag *NewTag = CopyTagAndBuffer(&NewZone, Tag);
             u8* NewBuffer = GetBuffer(NewTag);
+
             for (umm ref_index = 0; ref_index < NewTag->ref_count; ++ref_index)
             {
               NewTag->references[ref_index][0] = NewBuffer;
@@ -82,7 +83,7 @@ void collect()
 
                 for (umm ref_index = 0; ref_index < NewElementTag->ref_count; ++ref_index)
                 {
-                  NewElementTag->references[ref_index][0] = (u8*)NewElement;
+                  NewElementTag->references[ref_index][0] = NewElement->buf.element;
                 }
 
               }

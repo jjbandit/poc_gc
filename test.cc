@@ -34,9 +34,22 @@ Str replace(buf_ref<u8> Source, buf_ref<u8> ReplacementPattern)
 #define TEST_e (TEST_ALL || 0)
 #define TEST_f (TEST_ALL || 0)
 #define TEST_a (TEST_ALL || 0)
-#define TEST_b (TEST_ALL || 1)
-#define TEST_c (TEST_ALL || 0)
+#define TEST_b (TEST_ALL || 0)
+#define TEST_c (TEST_ALL || 1)
 #define TEST_d (TEST_ALL || 0)
+
+#define Sz(const_str) sizeof(const_str), const_str
+
+
+void PrintString(const Str_Ref & s)
+{
+  printf("%s\n", s.buf.element);
+}
+
+void PrintString(Str & s)
+{
+  printf("%s\n", s.buf.element);
+}
 
 int main()
 {
@@ -45,7 +58,8 @@ int main()
 #if TEST_e
   printf("__ STARTING __ TEST e __\n");
   {
-    Str thing1(32);
+    Str thing1(Sz("thing1"));
+    PrintString(thing1);
   }
   collect();
   assert_HeapEmpty(&gHeap);
@@ -55,7 +69,7 @@ int main()
   printf("__ STARTING __ TEST f __\n");
   for (int i = 0; i < 5; ++i)
   {
-    Str thing1(32);
+    Str thing1(Sz("thing1"));
     collect();
   }
   collect();
@@ -65,15 +79,18 @@ int main()
 #if TEST_a
   printf("__ STARTING __ TEST a __\n");
   {
-    Str thing1(32);
+    Str foobar(Sz("foo bar"));
     collect();
 
     printf("-----------------\n");
 
-    Str s2 = slice(buf_ref<u8>(thing1.buf.element), 0, 1);
+    Str foo = slice(buf_ref<u8>(foobar.buf.element), 0, 3);
     collect();
 
     printf("-----------------\n");
+
+    PrintString(foobar);
+    PrintString(foo);
 
     /* Str s3 = replace(buf_ref(thing1.buf.element), buf_ref(s2.buf.element)); */
     /* collect(); */
@@ -87,27 +104,37 @@ int main()
 #if TEST_b
   printf("__ STARTING __ TEST b __\n");
   {
-    Str thing1(32);
+    Str thing1(Sz("thing1"));
 
     List<Str> list(8);
 
 #if 1
+    PrintString(thing1);
+
     buf_ref<u8> thing1_ref = list.push(&thing1);
+
+    PrintString(Str_Ref(thing1_ref));
+
+    thing1_ref.element[0] = 'a';
+
     collect();
+    PrintString(Str_Ref(thing1_ref));
+    collect();
+    PrintString(Str_Ref(thing1_ref));
 #else
     // Correctly asserts at runtime.  Error message could be better.
     list.push(&thing1);
     list.push(&thing1);
 #endif
 
-    int i = 0;
-    while (i++ < 3)
-    {
-      Str thing2(32);
-      collect();
-      list.push(&thing2);
-    }
-    collect();
+    /* int i = 0; */
+    /* while (i++ < 3) */
+    /* { */
+    /*   Str thing2(Sz("thing2")); */
+    /*   collect(); */
+    /*   list.push(&thing2); */
+    /* } */
+    /* collect(); */
 
   }
   collect();
@@ -118,7 +145,7 @@ int main()
 #if TEST_c
   printf("__ STARTING __ TEST 3 __\n");
   {
-    Str thing(32);
+    Str thing(Sz("01234567789"));
     collect();
     List<Str> list(8);
     collect();
@@ -127,8 +154,9 @@ int main()
     while (i++ < 7)
     {
       printf("slice --------------------- slice\n");
-      Str thing2 = thing.slice(0, 2);
-      list.push(thing2);
+      Str thing2 = slice(buf_ref<u8>(thing.buf.element), 0, i);
+      PrintString(thing2);
+      list.push(&thing2);
       collect();
     }
     collect();
