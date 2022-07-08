@@ -27,83 +27,84 @@ void collect()
   heap NewZone = AllocateHeap(Megabytes(32));
   VerifyHeapIntegrity(&NewZone);
 
+  u8* current_memory = gHeap.memory;
+  umm at = 0;
+  while (at < gHeap.at)
   {
-    u8* current_memory = gHeap.memory;
-    umm at = 0;
-    while (at < gHeap.at)
+    allocation_tag *Tag = (allocation_tag*)(current_memory + at);
+    assert(Tag->size);
+
+    if (Tag->pointer_location && Tag->pointer_location[0] != 0)
     {
-      allocation_tag *Tag = (allocation_tag*)(current_memory + at);
-      assert(Tag->size);
-
-      if (Tag->pointer_location)
+      switch(Tag->Type)
       {
-        switch(Tag->Type)
+        case allocation_type::Buffer:
         {
-          case allocation_type::Buffer:
-          {
-            allocation_tag *NewTag = CopyTagAndBuffer(&NewZone, Tag);
-            u8* NewBuffer = GetBuffer(NewTag);
+          allocation_tag *NewTag = CopyTagAndBuffer(&NewZone, Tag);
+          u8* NewBuffer = GetBuffer(NewTag);
 
-            for (umm ref_index = 0; ref_index < NewTag->ref_count; ++ref_index)
+          for (umm ref_index = 0; ref_index < NewTag->ref_count; ++ref_index)
+          {
+            if (u8** Ref = NewTag->references[ref_index])
             {
-              NewTag->references[ref_index][0] = NewBuffer;
+              *Ref = NewBuffer;
             }
+          }
 
-          } break;
+        } break;
 
-          case allocation_type::Owned_Buffer:
+        case allocation_type::Owned_Buffer:
+        {
+          // It's owned by a container on the heap and will get copied by
+          // that container, if it's alive.
+        } break;
+
+        case allocation_type::List_Str:
+        {
+          allocation_tag* NewContainerTag = CopyTagAndBuffer(&NewZone, Tag);
+          Str* ContainerBuffer = (Str*)GetBuffer(NewContainerTag);
+          assert_TagValidForHeap(&NewZone, NewContainerTag);
+          VerifyHeapIntegrity(&NewZone);
+
+          umm element_count = Tag->size/sizeof(Str);
+          for (umm element_index = 0; element_index < element_count; ++element_index)
           {
-            // It's owned by a container on the heap and will get copied by
-            // that container, if it's alive.
-          } break;
-
-          case allocation_type::List_Str:
-          {
-            allocation_tag* NewContainerTag = CopyTagAndBuffer(&NewZone, Tag);
-            Str* ContainerBuffer = (Str*)GetBuffer(NewContainerTag);
-            assert_TagValidForHeap(&NewZone, NewContainerTag);
-            VerifyHeapIntegrity(&NewZone);
-
-            umm element_count = Tag->size/sizeof(Str);
-            for (umm element_index = 0; element_index < element_count; ++element_index)
+            Str* NewElement = ContainerBuffer + element_index;
+            if (NewElement->handle.buffer)
             {
-              Str* NewElement = ContainerBuffer + element_index;
-              if (NewElement->buf.element)
+              allocation_tag *ElementTag = GetTag(NewElement->handle.buffer);
+              assert(ElementTag->Type == allocation_type::Owned_Buffer);
+              assert_PointerValidForHeap(&gHeap, (u8*)ElementTag->pointer_location);
+              assert_PointerValidForHeap(&gHeap, (u8*)&ElementTag->pointer_location);
+
+              allocation_tag * NewElementTag = CopyTagAndBuffer(&NewZone, ElementTag, &NewElement->handle.buffer);
+              assert_PointerValidForHeap(&NewZone, (u8*)NewElementTag->pointer_location);
+              assert_PointerValidForHeap(&NewZone, (u8*)&NewElementTag->pointer_location);
+              assert_TagValidForHeap(&NewZone, NewElementTag);
+              VerifyHeapIntegrity(&NewZone);
+
+              for (umm ref_index = 0; ref_index < NewElementTag->ref_count; ++ref_index)
               {
-                allocation_tag *ElementTag = GetTag(NewElement->buf.element);
-                assert(ElementTag->Type == allocation_type::Owned_Buffer);
-                assert_PointerValidForHeap(&gHeap, (u8*)ElementTag->pointer_location);
-                assert_PointerValidForHeap(&gHeap, (u8*)&ElementTag->pointer_location);
-
-                allocation_tag * NewElementTag = CopyTagAndBuffer(&NewZone, ElementTag, &NewElement->buf.element);
-                assert_PointerValidForHeap(&NewZone, (u8*)NewElementTag->pointer_location);
-                assert_PointerValidForHeap(&NewZone, (u8*)&NewElementTag->pointer_location);
-                assert_TagValidForHeap(&NewZone, NewElementTag);
-                VerifyHeapIntegrity(&NewZone);
-
-                for (umm ref_index = 0; ref_index < NewElementTag->ref_count; ++ref_index)
-                {
-                  NewElementTag->references[ref_index][0] = NewElement->buf.element;
-                }
-
+                NewElementTag->references[ref_index][0] = NewElement->handle.buffer;
               }
 
             }
 
-          } break;
+          }
 
-          case None: { InvalidCodePath(); } break;
-        }
+        } break;
 
-        VerifyHeapIntegrity(&NewZone);
-      }
-      else
-      {
-        printf("Collected (%lu) bytes @ 0x%lx\n", Tag->size, (umm)GetBuffer(Tag));
+        case None: { InvalidCodePath(); } break;
       }
 
-      at += Tag->size + sizeof(allocation_tag);
+      VerifyHeapIntegrity(&NewZone);
     }
+    else
+    {
+      printf("Collected (%lu) bytes @ 0x%lx\n", Tag->size, (umm)GetBuffer(Tag));
+    }
+
+    at += Tag->size + sizeof(allocation_tag);
   }
 
   VerifyHeapIntegrity(&NewZone);

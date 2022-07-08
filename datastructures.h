@@ -7,80 +7,105 @@
     T_NAME__(T_NAME__ && source) = default
 
 template <typename T>
-struct buf_ref
+class buf_ref
 {
+  public:
   RESTRICT_TO_MOVE_OPERATOR(buf_ref);
 
-  buf_ref(T *element_init):
-    element(element_init),
-    ref_number(register_reference<u8>(element, &element))
+  T* buffer;
+  u8 ref_number;
+
+  buf_ref(buf_handle<T> & handle);
+
+  buf_ref(T *buf_init):
+    buffer(buf_init),
+    ref_number(register_reference<u8>(buffer, &buffer))
   {
-    printf("buf_ref_construct 0x%lx\n", (umm)element_init);
+    printf("buf_ref_construct 0x%lx\n", (umm)buf_init);
   }
 
   ~buf_ref()
   {
-    printf("buf_ref_destruct  0x%lx\n", (umm)element);
+    printf("buf_ref_destruct  0x%lx\n", (umm)buffer);
 
-    // NOTE(Jesse): Once that's done we also need to put logic in to search for an open slot
-    // when allocating, instead of just incrementing and overwriting.
-    printf("TODO(Jesse): This needs to pull the reference off the allocation_tag list\n");
+    allocation_tag *Tag = GetTag(buffer);
+    assert(Tag->references[ref_number] == &buffer);
+    Tag->references[ref_number] = 0;
   }
-
-  T* element;
-  u8 ref_number;
 };
 
 template <typename T>
 struct buf_handle
 {
-  T *element;
+  T *buffer;
 
   buf_handle& operator=(buf_handle & other) = delete;
   buf_handle& operator=(buf_handle && other) = delete;
   buf_handle(buf_handle & obj) = delete;
 
-  buf_handle(buf_handle && source):
-    element(source.element)
+  buf_handle(buf_handle && handle):
+    buffer(handle.buffer)
   {
-    printf("buf_handle move construct 0x%lx\n", (umm)source.element);
-    take_ownership((u8**)&element);
+    printf("buf_handle move construct 0x%lx\n", (umm)buffer);
+    take_ownership((u8**)&buffer);
   }
 
-  buf_handle(T *element_init):
-    element(element_init)
+  buf_handle(T *buf_init):
+    buffer(buf_init)
   {
-    printf("buf_handle construct 0x%lx\n", (umm)element_init);
-    take_ownership((u8**)&element);
+    printf("buf_handle construct 0x%lx\n", (umm)buffer);
+    take_ownership((u8**)&buffer);
   }
 
   ~buf_handle()
   {
-    printf("buf_handle_destruct  0x%lx\n", (umm)element);
-    if (element && we_own_allocation((u8**)&element))
+    printf("buf_handle_destruct  0x%lx\n", (umm)buffer);
+    if (buffer && we_own_allocation((u8**)&buffer))
     {
-      Deallocate((u8*)element);
+      Deallocate((u8*)buffer);
     }
     else
     {
       // NOTE(Jesse): We transferred ownership to another container.
     }
   }
+
+  bool operator=(int new_buf)
+  {
+    assert(new_buf == 0);
+    Deallocate((u8*)buffer);
+    return false;
+  }
+
+  T & operator[](int index)
+  {
+    return this->buffer[index];
+  }
 };
 
+template <typename T>
+buf_ref<T>::buf_ref(buf_handle<T> & handle) :
+  buffer(handle.buffer),
+  ref_number(register_reference<u8>(buffer, &buffer))
+{
+  printf("buf_ref_construct 0x%lx\n", (umm)buffer);
+}
+
+Str slice(buf_ref<u8> src, umm begin, umm end);
+struct Str_Ref;
 
 struct Str
 {
   RESTRICT_TO_MOVE_OPERATOR(Str);
 
   umm len;
-  buf_handle<u8> buf;
+  buf_handle<u8> handle;
 
   Str(int len_init, buf_handle<u8> buffer):
     len(len_init),
-    buf(std::move(buffer))
+    handle(std::move(buffer))
   {
-    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf.element);
+    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)handle.buffer);
   }
 
   // NOTE(Jesse): If we were more clever about .. something .. we wouldn't have
@@ -88,24 +113,29 @@ struct Str
   // handling this is, but surely there is one.
   Str(int len_init, const char* buffer):
     len(len_init),
-    buf(Allocate<u8>(len+1, allocation_type::Buffer))
+    handle(Allocate<u8>(len+1, allocation_type::Buffer))
   {
-    CopyMemory(buf.element, (u8*)buffer, len_init);
-    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf.element);
+    CopyMemory(handle.buffer, (u8*)buffer, len_init);
+    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)handle.buffer);
   }
 
   Str(int len_init, u8* buffer):
     len(len_init),
-    buf(buffer)
+    handle(buffer)
   {
-    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)buf.element);
+    printf("Initialized Str(%lu)    @ 0x%lx\n", len, (umm)handle.buffer);
   }
 
   Str(int len_init):
     len(len_init),
-    buf(Allocate<u8>(len+1, allocation_type::Buffer))
+    handle(Allocate<u8>(len+1, allocation_type::Buffer))
   {
     printf("Initialized Str(%lu)\n", len);
+  }
+
+  u8* buffer()
+  {
+    return handle.buffer;
   }
 
   ~Str()
@@ -113,39 +143,55 @@ struct Str
     printf("Destroyed   Str(%lu)\n", len);
   }
 
-  /* Str slice(umm begin, umm end) */
-  /* { */
-  /*   return ::slice(buf, begin, end); */
-  /* } */
+  Str slice(umm begin, umm end)
+  {
+    return ::slice(this->handle, begin, end);
+  }
 
+  Str replace(const Str_Ref &, const Str_Ref &);
 };
 
 Str slice(buf_ref<u8> src, umm begin, umm end)
 {
   printf("slice start\n");
-  allocation_tag *Tag  = GetTag(src.element);
+  allocation_tag *Tag  = GetTag(src.buffer);
 
   umm size = end-begin;
   assert(begin == 0);
   assert(size <= Tag->size);
 
-  auto buf = Allocate<u8>(size+1, allocation_type::Buffer);
-  CopyMemory(buf.element, src.element, size);
+  auto handle = Allocate<u8>(size+1, allocation_type::Buffer);
+  CopyMemory(handle.buffer, src.buffer, size);
 
   printf("slice end\n");
 
-  return Str(size, std::move(buf));
-;
+  return Str(size, std::move(handle));
 }
 
 struct Str_Ref
 {
   RESTRICT_TO_MOVE_OPERATOR(Str_Ref);
 
-  buf_ref<u8> buf;
+  buf_ref<u8> handle;
+  umm len;
+
+  Str_Ref(Str &s):
+    handle(s.handle)
+  {
+  }
+
+  Str_Ref(u8* buffer):
+    handle(buffer)
+  {
+  }
+
+  Str_Ref(buf_handle<u8> & buf_init):
+    handle(buf_ref<u8>(buf_init))
+  {
+  }
 
   Str_Ref(buf_ref<u8> & buf_init):
-    buf(std::move(buf_init))
+    handle(std::move(buf_init))
   {
   }
 
@@ -155,15 +201,59 @@ struct Str_Ref
     /* NotImplemented(); */
   }
 
+  u8& operator[](int i)
+  {
+    return handle.buffer[i];
+  }
+
+  u8* buffer()
+  {
+    return handle.buffer;
+  }
+
   /* Str slice(int start, int end) */
   /* { */
-  /*   assert_PointerValidForHeap(&gHeap, (u8*)this->element); */
-  /*   assert_AllocationValidForHeap(&gHeap, this->element->buf); */
-  /*   printf("ref-slice 0x%lx\n", (umm)this->element->buf); */
-  /*   return this->element->slice(start, end); */
+  /*   assert_PointerValidForHeap(&gHeap, (u8*)this->buffer); */
+  /*   assert_AllocationValidForHeap(&gHeap, this->buffer->handle); */
+  /*   printf("ref-slice 0x%lx\n", (umm)this->buffer->handle); */
+  /*   return this->buffer->slice(start, end); */
   /* } */
 
 };
+
+
+Str replace(const Str_Ref &src, const Str_Ref &search_pattern, const Str_Ref &replace_pattern)
+{
+  printf("slice start\n");
+
+  allocation_tag *Tag  = GetTag(src.handle.buffer);
+  umm size = Tag->size;
+
+  assert(search_pattern.len < size);
+
+  auto handle = Allocate<u8>(size, allocation_type::Buffer);
+  CopyMemory(handle.buffer, search_pattern.handle.buffer, size);
+
+  printf("slice end\n");
+
+  return Str(size, std::move(handle));
+}
+
+Str Str::replace(const Str_Ref &search_pattern, const Str_Ref &replace_pattern)
+{
+  return ::replace(Str_Ref(handle), search_pattern, replace_pattern);
+}
+
+
+
+
+
+
+
+
+
+
+
 
 template<typename T>
 struct List
@@ -172,60 +262,59 @@ struct List
 
   umm at;
   umm len;
-  buf_handle<T> buf;
+  buf_handle<T> handle;
 
   List(int elements):
     at(0),
     len(elements),
-    buf(Allocate<T>(elements, allocation_type::List_Str))
+    handle(Allocate<T>(elements, allocation_type::List_Str))
   {
-    printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)&buf.element);
+    printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)&handle.buffer);
   }
 
   /* List<T>(int len_init, u8* buf_init) { */
   /*   len = len_init; */
-  /*   buf = buf_init; */
-  /*   printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)buf); */
+  /*   handle = buf_init; */
+  /*   printf("Initialized List(%lu) @ 0x%lx\n", len, (umm)handle); */
   /* } */
 
   ~List() {
     for (int i = 0; i < len; ++i)
     {
-      if (buf.element[i].buf.element)
+      if (handle[i].buffer())
       {
-        assert(we_own_allocation(&buf.element[i].buf.element));
-        Deallocate<u8>(&buf.element[i].buf);
+        assert(we_own_allocation(&handle.buffer[i].handle.buffer));
+        Deallocate<u8>(&handle.buffer[i].handle);
       }
     }
-    printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&buf);
-    Deallocate<Str>(&buf);
+    printf("Deallocating List(%ld) @ 0x%lx\n", len, (umm)&handle);
+    Deallocate<Str>(&handle);
   }
 
-  /* void push(T *element) */
-  buf_ref<u8> push(T *element)
+  Str_Ref push(T *buffer)
   {
     assert(at < len);
-    printf("Pushing list element (%lu) :: Owned by 0x%lx\n", at, (umm)&buf);
+    printf("Pushing list buffer (%lu) :: Owned by 0x%lx\n", at, (umm)&handle);
 
-    T *bucket = buf.element + at;
+    T *bucket = handle.buffer + at;
 
-    MoveMemory((u8*)bucket, (u8*)element, sizeof(T));
+    MoveMemory((u8*)bucket, (u8*)buffer, sizeof(T));
 
-    take_ownership((u8**)&bucket->buf);
+    take_ownership((u8**)&bucket->handle);
 
-    allocation_tag* Tag = GetTag(bucket->buf.element);
+    allocation_tag* Tag = GetTag(bucket->handle.buffer);
     Tag->Type = allocation_type::Owned_Buffer;
 
     at++;
 
     VerifyHeapIntegrity(&gHeap);
 
-    return buf_ref<u8>(bucket->buf.element);
+    return Str_Ref(bucket->handle);
   }
 
 #if 0
   // NOTE(Jesse): This is here such that we can add elements that are created
-  // from temporaries.  This is unsafe, but works because the element is
+  // from temporaries.  This is unsafe, but works because the buffer is
   // immediately copied into the permanent storage of this container.  Somewhat
   // confusing, definite footgun.  Not sure what we can do about getting around
   // this issue.
@@ -234,9 +323,9 @@ struct List
   // accept const references (temporary variables) for stuff that's stored
   // immediately afterwards.
   //
-  Str_Ref push(const T &element)
+  Str_Ref push(const T &buffer)
   {
-    return push((T*)&element);
+    return push((T*)&buffer);
   }
 #endif
 };

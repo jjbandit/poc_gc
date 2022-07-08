@@ -24,42 +24,49 @@ Str replace(buf_ref<u8> Source, buf_ref<u8> ReplacementPattern)
   collect();
 
   Str Result(1, Allocate<u8>(4, allocation_type::Buffer));
-  CopyMemory(Result.buf.element, Source.element, 1);
+  CopyMemory(Result.handle.buffer, Source.buffer, 1);
   printf("---------- collection complete\n");
   return Result;
 }
 
 
 #define TEST_ALL 0
-#define TEST_e (TEST_ALL || 0)
-#define TEST_f (TEST_ALL || 0)
-#define TEST_a (TEST_ALL || 0)
-#define TEST_b (TEST_ALL || 0)
+#define TEST_e (TEST_ALL || 1)
+#define TEST_f (TEST_ALL || 1)
+#define TEST_a (TEST_ALL || 1)
+#define TEST_b (TEST_ALL || 1)
 #define TEST_c (TEST_ALL || 1)
-#define TEST_d (TEST_ALL || 0)
+#define TEST_d (TEST_ALL || 1)
 
 #define Sz(const_str) sizeof(const_str), const_str
 
 
 void PrintString(const Str_Ref & s)
 {
-  printf("%s\n", s.buf.element);
+  printf("%s\n", s.handle.buffer);
 }
 
 void PrintString(Str & s)
 {
-  printf("%s\n", s.buf.element);
+  printf("%s\n", s.handle.buffer);
 }
 
 int main()
 {
   InitHeap(Megabytes(32));
 
+  /* buffer_handle<u8> buf = Allocate<u8>(32); // Allocate 32 bytes */
+
+#if 1
 #if TEST_e
   printf("__ STARTING __ TEST e __\n");
   {
     Str thing1(Sz("thing1"));
-    PrintString(thing1);
+
+    /* thing1 = 0; */
+    /* Str thing2 = thing1; */
+
+    /* PrintString(thing1); */
   }
   collect();
   assert_HeapEmpty(&gHeap);
@@ -84,7 +91,7 @@ int main()
 
     printf("-----------------\n");
 
-    Str foo = slice(buf_ref<u8>(foobar.buf.element), 0, 3);
+    Str foo = foobar.slice(0, 3);
     collect();
 
     printf("-----------------\n");
@@ -92,8 +99,10 @@ int main()
     PrintString(foobar);
     PrintString(foo);
 
-    /* Str s3 = replace(buf_ref(thing1.buf.element), buf_ref(s2.buf.element)); */
-    /* collect(); */
+    Str baz = Str(Sz("baz"));
+    /* Str bazbar = foobar.replace(Str_Ref(foo), Str_Ref(baz)); */
+    /* PrintString(bazbar); */
+    collect();
 
     /* ExampleFunction(thing1.slice(0,1)); */
   }
@@ -111,16 +120,15 @@ int main()
 #if 1
     PrintString(thing1);
 
-    buf_ref<u8> thing1_ref = list.push(&thing1);
+    auto thing1_ref = list.push(&thing1);
+    PrintString(thing1_ref);
 
-    PrintString(Str_Ref(thing1_ref));
-
-    thing1_ref.element[0] = 'a';
+    thing1_ref[0] = 'a';
 
     collect();
-    PrintString(Str_Ref(thing1_ref));
+    PrintString(thing1_ref);
     collect();
-    PrintString(Str_Ref(thing1_ref));
+    PrintString(thing1_ref);
 #else
     // Correctly asserts at runtime.  Error message could be better.
     list.push(&thing1);
@@ -154,10 +162,12 @@ int main()
     while (i++ < 7)
     {
       printf("slice --------------------- slice\n");
-      Str thing2 = slice(buf_ref<u8>(thing.buf.element), 0, i);
-      PrintString(thing2);
-      list.push(&thing2);
+      Str thing2 = thing.slice(0, i);
       collect();
+      /* PrintString(thing2); */
+      /* collect(); */
+      /* list.push(&thing2); */
+      /* collect(); */
     }
     collect();
   }
@@ -171,10 +181,10 @@ int main()
     Str thing1(32);
     List<Str> list(8);
 
-    Str_Ref reference = list.push(thing1);
+    Str_Ref reference = list.push(&thing1);
 
   collect();
-    { Str slice = reference.slice(0,1); }
+    /* { Str slice = reference.slice(0,1); } */
   collect();
     /* { Str slice = reference.slice(0,1); } */
   collect();
@@ -183,4 +193,7 @@ int main()
   collect();
   assert_HeapEmpty(&gHeap);
 #endif
+
+#endif
+
 }

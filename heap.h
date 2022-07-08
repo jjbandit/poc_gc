@@ -66,6 +66,13 @@ inline allocation_tag* GetTag(T *buffer)
   return result;
 }
 
+/* inline u8** */
+/* GetBufferAddress(allocation_tag *Tag) */
+/* { */
+/*   u8** Result = &((u8*)Tag + sizeof(allocation_tag)); */
+/*   return Result; */
+/* } */
+
 inline u8*
 GetBuffer(allocation_tag *Tag)
 {
@@ -147,9 +154,6 @@ VerifyHeapIntegrity(heap *H)
 
 void collect();
 
-// NOTE(Jesse): Sometimes, when
-#define ALLOCATION_OWNER_NONE ((u8**)1)
-
 void Deallocate(u8* Allocation)
 {
   printf("Deallocating 0x%lx\n", (umm)Allocation);
@@ -160,8 +164,8 @@ void Deallocate(u8* Allocation)
 template <typename T>
 void Deallocate(buf_handle<T> * Handle)
 {
-  printf("Deallocating 0x%lx\n", (umm)Handle->element);
-  allocation_tag *Tag = GetTag(Handle->element);
+  printf("Deallocating 0x%lx\n", (umm)Handle->buffer);
+  allocation_tag *Tag = GetTag(Handle->buffer);
   Tag->pointer_location = 0;
 }
 
@@ -171,11 +175,21 @@ u8 register_reference(u8* allocation, T** pointer_location)
   allocation_tag *Tag = GetTag(allocation);
   assert(Tag->ref_count < MAX_TAG_REFERENCES);
 
-  u8 ref_number = Tag->ref_count++;
-  assert(Tag->references[ref_number] == 0);
+  int ref_index = 0;
+  while(ref_index < MAX_TAG_REFERENCES)
+  {
+    if (Tag->references[ref_index] == 0)
+    {
+      break;
+    }
+  }
+  assert(Tag->references[ref_index] == 0);
 
-  Tag->references[ref_number] = reinterpret_cast<u8**>(pointer_location);
-  return ref_number;
+
+  Tag->ref_count++;
+
+  Tag->references[ref_index] = reinterpret_cast<u8**>(pointer_location);
+  return ref_index;
 }
 
 void
