@@ -73,10 +73,13 @@ int main()
     //
     buf_handle<u8> buf = Allocate<u8>(32, allocation_type::Buffer);
 
+    printf(" -- buf allocated\n");
+
     // Copy a constant string into our allocated buffer.  We pass the raw
     // pointer because CopyMemory() does not allocate.
     CopyMemory(buf.buffer, Sz_For_Memcopy("value"));
 
+    printf(" -- value copied\n");
 
     // Call a function that allocates.  Notice it takes a handle.  The handle
     // constructor will get called in slice(), which in turn registers the
@@ -85,6 +88,8 @@ int main()
     // constructor takes care of it automatically.
     buf_handle<u8> buf_sliced = slice_buffer(buf, 0, 2);
 
+    printf(" -- value sliced\n");
+
     // Buffers are still valid.  During the allocation (collection) the handles
     // had taken care of telling the GC about all the pointers on the stack,
     // which it updated for us.
@@ -92,6 +97,8 @@ int main()
     // PrintString doesn't allocate, so we can pass raw pointers
     PrintString(buf.buffer);
     PrintString(buf_sliced.buffer);
+
+    printf(" -- values printed\n");
   }
 
   // Scope exited, handles destructors run and unregister those allocation w/ the collector

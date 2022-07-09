@@ -155,7 +155,7 @@ struct Str
 
 buf_handle<u8> slice_buffer(buf_ref<u8> src, umm begin, umm end)
 {
-  printf("slice start\n");
+  printf(" -- slice start\n");
   allocation_tag *Tag  = GetTag(src.buffer);
 
   umm size = end-begin;
@@ -165,7 +165,7 @@ buf_handle<u8> slice_buffer(buf_ref<u8> src, umm begin, umm end)
   auto handle = Allocate<u8>(size+1, allocation_type::Buffer);
   CopyMemory(handle.buffer, src.buffer, size);
 
-  printf("slice end\n");
+  printf(" -- slice end\n");
 
   return handle;
 }
