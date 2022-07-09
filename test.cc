@@ -117,6 +117,8 @@ int main()
   }
 
   // Scope exited, handles destructors run and unregister those allocation w/ the collector
+  //
+  // In the oil code, this would be StackRoots.pop();
 
   collect(); // Collector reclaims those buffers
 
