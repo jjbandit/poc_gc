@@ -81,20 +81,35 @@ int main()
 
     printf(" -- value copied\n");
 
-    // Call a function that allocates.  Notice it takes a handle.  The handle
-    // constructor will get called in slice(), which in turn registers the
-    // arguments address with the GC.  This means that slice can allocate
-    // without fear of forgetting to register stack roots, because the handle
-    // constructor takes care of it automatically.
+    // Call a function that allocates.  Notice it takes a handle.  A second
+    // handle will get constructed as argument to slice, which in turn
+    // registers the arguments address with the GC.  At that point, there will
+    // be two handles in existence .. on on the stack in main, and one on the
+    // stack in slice.  Both have told the GC about the pointers they hold into
+    // heap memory.
+    //
+    // This means that slice can allocate without fear of forgetting to
+    // register stack roots, because the handle constructor takes care of it
+    // automatically.
+    //
     buf_handle<u8> buf_sliced = slice_buffer(buf, 0, 2);
+
+    // Here, the second temp handle has been destroyed, because it was an
+    // argument to the function slice.  Slice allocated a new buffer for the
+    // result, which is also wrapped in a handle, and returned by value.
+    //
+    // Now, the GC now knows about two pointers into heap memory on the stack,
+    // the one at buf.buffer, and the one at buf_sliced.buffer
+    //
 
     printf(" -- value sliced\n");
 
-    // Buffers are still valid.  During the allocation (collection) the handles
-    // had taken care of telling the GC about all the pointers on the stack,
-    // which it updated for us.
+    // Buffers are still valid.  During the allocation in slice (and
+    // collection) the handles had taken care of telling the GC about all the
+    // pointers on the stack, which have been updated for us.
     //
     // PrintString doesn't allocate, so we can pass raw pointers
+    //
     PrintString(buf.buffer);
     PrintString(buf_sliced.buffer);
 
