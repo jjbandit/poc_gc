@@ -40,6 +40,8 @@ Str replace(buf_ref<u8> Source, buf_ref<u8> ReplacementPattern)
 
 #define Sz(const_str) sizeof(const_str), const_str
 
+#define Sz_For_Memcopy(const_str)  (u8 *)const_str, sizeof(const_str)
+
 
 void PrintString(const Str_Ref & s)
 {
@@ -51,13 +53,54 @@ void PrintString(Str & s)
   printf("%s\n", s.handle.buffer);
 }
 
+void PrintString(u8 * buffer)
+{
+  printf("%s\n", buffer);
+}
+
+
 int main()
 {
   InitHeap(Megabytes(32));
 
-  /* buffer_handle<u8> buf = Allocate<u8>(32); // Allocate 32 bytes */
+  {
+    // Allocate 32 bytes, and register buf.buffer (the pointer member in buf_handle) w/ the GC
+    //
+    // This registration happens in the buf_handle constructor so the GC knows that we have
+    // a pointer on the stack into heap memory.
+    //
+    // In this example, the function is take_ownership, but in the Oil code it would be gHeap.PushRoot()
+    //
+    buf_handle<u8> buf = Allocate<u8>(32, allocation_type::Buffer);
 
-#if 1
+    // Copy a constant string into our allocated buffer.  We pass the raw
+    // pointer because CopyMemory() does not allocate.
+    CopyMemory(buf.buffer, Sz_For_Memcopy("value"));
+
+
+    // Call a function that allocates.  Notice it takes a handle.  The handle
+    // constructor will get called in slice(), which in turn registers the
+    // arguments address with the GC.  This means that slice can allocate
+    // without fear of forgetting to register stack roots, because the handle
+    // constructor takes care of it automatically.
+    buf_handle<u8> buf_sliced = slice_buffer(buf, 0, 2);
+
+    // Buffers are still valid.  During the allocation (collection) the handles
+    // had taken care of telling the GC about all the pointers on the stack,
+    // which it updated for us.
+    //
+    // PrintString doesn't allocate, so we can pass raw pointers
+    PrintString(buf.buffer);
+    PrintString(buf_sliced.buffer);
+  }
+
+  // Scope exited, handles destructors run and unregister those allocation w/ the collector
+
+  collect(); // Collector reclaims those buffers
+
+
+#if 0
+
 #if TEST_e
   printf("__ STARTING __ TEST e __\n");
   {

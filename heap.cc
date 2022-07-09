@@ -23,7 +23,7 @@ buf_handle<T> Allocate(umm elements, allocation_type Type)
 
 void collect()
 {
-  printf(" ----- collecting --------\n");
+  printf(" ------- collecting --------\n");
   heap NewZone = AllocateHeap(Megabytes(32));
   VerifyHeapIntegrity(&NewZone);
 
@@ -114,4 +114,5 @@ void collect()
 
   VerifyHeapIntegrity(&NewZone);
   VerifyHeapIntegrity(&gHeap);
+  printf(" --- finished collecting ---\n");
 }

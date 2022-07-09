@@ -91,7 +91,7 @@ buf_ref<T>::buf_ref(buf_handle<T> & handle) :
   printf("buf_ref_construct 0x%lx\n", (umm)buffer);
 }
 
-Str slice(buf_ref<u8> src, umm begin, umm end);
+buf_handle<u8> slice_buffer(buf_ref<u8> src, umm begin, umm end);
 struct Str_Ref;
 
 struct Str
@@ -145,13 +145,15 @@ struct Str
 
   Str slice(umm begin, umm end)
   {
-    return ::slice(this->handle, begin, end);
+    assert(begin == 0);
+    assert(end < len);
+    return Str(len, ::slice_buffer(this->handle, begin, end));
   }
 
   Str replace(const Str_Ref &, const Str_Ref &);
 };
 
-Str slice(buf_ref<u8> src, umm begin, umm end)
+buf_handle<u8> slice_buffer(buf_ref<u8> src, umm begin, umm end)
 {
   printf("slice start\n");
   allocation_tag *Tag  = GetTag(src.buffer);
@@ -165,7 +167,7 @@ Str slice(buf_ref<u8> src, umm begin, umm end)
 
   printf("slice end\n");
 
-  return Str(size, std::move(handle));
+  return handle;
 }
 
 struct Str_Ref
